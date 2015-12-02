@@ -1,4 +1,8 @@
 *~
 _book/
+.idea/
+build/
+
+# generate files
 include/fluent-bit/flb_plugins.h
 include/fluent-bit/flb_version.h
