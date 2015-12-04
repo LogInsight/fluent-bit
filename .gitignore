@@ -1,2 +1,4 @@
 *~
 _book/
+include/fluent-bit/flb_plugins.h
+include/fluent-bit/flb_version.h
