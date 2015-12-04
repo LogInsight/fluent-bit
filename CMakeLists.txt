@@ -132,3 +132,5 @@ if(ENABLE_TESTS)
   enable_testing()
   add_subdirectory(tests)
 endif()
+
+add_subdirectory (3rd_party)
