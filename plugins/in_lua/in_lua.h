@@ -29,7 +29,7 @@ struct flb_in_lua_config {
     //TODO: fork & pipe ?
     int fd;                           /* stdin file descriptor */
     int buf_len;                      /* read buffer length    */
-    char buf[8192 * 8];               /* read buffer: 16Kb max */
+    char buf[8192 * 2];               /* read buffer: 16Kb max */
 
     int buffer_id;
     struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer        */

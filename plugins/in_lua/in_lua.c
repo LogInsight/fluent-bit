@@ -58,13 +58,13 @@ int in_lua_init(struct flb_config *config)
     ctx->fd = fd;
 
     /* Set the context */
-    ret = flb_input_set_context("stdin", ctx, config);
+    ret = flb_input_set_context("lua", ctx, config);
     if (ret == -1) {
         flb_utils_error_c("Could not set configuration for STDIN input plugin");
     }
 
     /* Collect upon data available on the standard input */
-    ret = flb_input_set_collector_event("stdin",
+    ret = flb_input_set_collector_event("lua",
                                         in_lua_collect,
                                         ctx->fd,
                                         config);
