@@ -29,6 +29,10 @@
 #include <fluent-bit/flb_config.h>
 #include <fluent-bit/flb_pack.h>
 
+#include <lua5.1/lua.h>
+#include <lua5.1/lauxlib.h>
+#include <lua5.1/lualib.h>
+
 #include "in_lua.h"
 
 /* Initialize plugin */
@@ -50,7 +54,7 @@ int in_lua_init(struct flb_config *config)
     ctx->buffer_id = 0;
 
     /* Clone the standard input file descriptor */
-    fd = dup(STDIN_FILENO);
+    fd = dup(STDOUT_FILENO);
     if (fd == -1) {
         perror("dup");
         flb_utils_error_c("Could not open standard input!");
@@ -71,7 +75,25 @@ int in_lua_init(struct flb_config *config)
     if (ret == -1) {
         flb_utils_error_c("Could not set collector for STDIN input plugin");
     }
+    lua_State *L = luaL_newstate();
+    luaL_openlibs(L);
+    luaL_loadfile(L, "../test/fluent-bit/test.lua");
 
+    return 0;
+}
+
+void *in_lua_get_data(void *args)
+{
+    lua_State *L = luaL_newstate();
+    luaL_openlibs(L);
+    sleep(1);
+    luaL_loadfile(L, "../test/fluent-bit/test.lua");
+}
+
+int in_lua_pre_run(void *in_context, struct flb_config *config)
+{
+    pthread_t pthread;
+    pthread_create(&pthread, NULL, in_lua_get_data, NULL);
     return 0;
 }
 
@@ -158,7 +180,7 @@ struct flb_input_plugin in_lua_plugin = {
     .name         = "lua",
     .description  = "Lua Input",
     .cb_init      = in_lua_init,
-    .cb_pre_run   = NULL,
+    .cb_pre_run   = in_lua_pre_run,
     .cb_collect   = in_lua_collect,
     .cb_flush_buf = in_lua_flush
 };

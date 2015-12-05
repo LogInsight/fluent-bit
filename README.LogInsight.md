@@ -6,7 +6,7 @@ TODO
  1 提供一个 in_pipe/in_lua 插件, 在插件中 fork 一个子进程, 在子进程中, 返回 一个 简单的 json
    要求
    - agent 主进程能够接收到
-   - agent 主进程的in_stdout 能够输出
+   - agent 主进程的out_stdout 能够输出
  
  2 在 in_lua 插件中, 让 lua 脚本输出这个简单的 json 
    
