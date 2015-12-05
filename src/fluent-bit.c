@@ -111,7 +111,7 @@ void flb_signal_init()
     signal(SIGTERM, &flb_signal_handler);
 }
 
-int main(int argc, char **argv)
+int main_master(int argc, char **argv)
 {
     int opt;
     int ret;
@@ -218,4 +218,9 @@ int main(int argc, char **argv)
 
     flb_engine_start(config);
     return 0;
+}
+
+int main(int argc, char **argv)
+{
+    return main_master(argc, argv);
 }
