@@ -2,20 +2,23 @@
 
 #include <gtest/gtest.h>
 #include <fluent-bit.h>
-#include "data_td.h"
+#include "data/json_td.h"
 
 /* It writes a big JSON message (> 3.5MB) */
-TEST(Lib, push_big_json) {
+TEST(TD, json_long) {
     int ret;
-    char *p = (char *) JSON_TD;
     struct flb_lib_ctx *ctx;
 
-    ctx = flb_lib_init((char *) "stdout");
+    ctx = flb_lib_init((char *) "td");
     EXPECT_TRUE(ctx != NULL);
+
+    flb_config_verbose(FLB_TRUE);
+    ret = flb_lib_config_file(ctx, (char *) "/tmp/td.conf");
 
     ret = flb_lib_start(ctx);
     EXPECT_EQ(ret, 0);
 
-    flb_lib_push(ctx, p, (int) sizeof(JSON_TD) - 1);
+    flb_lib_push(ctx, (char *) JSON_TD , (int) sizeof(JSON_TD) - 1);
     flb_lib_stop(ctx);
+    flb_lib_exit(ctx);
 }
