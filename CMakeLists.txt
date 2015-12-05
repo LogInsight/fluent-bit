@@ -12,7 +12,7 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/library")
 
 # Fluent Bit Version
 set(FLB_VERSION_MAJOR  0)
-set(FLB_VERSION_MINOR  4)
+set(FLB_VERSION_MINOR  5)
 set(FLB_VERSION_PATCH  0)
 set(FLB_VERSION_STR "${FLB_VERSION_MAJOR}.${FLB_VERSION_MINOR}.${FLB_VERSION_PATCH}")
 
@@ -33,6 +33,7 @@ option(WITH_IN_KMSG     "Enable Kernel log input plugin"     Yes)
 option(WITH_IN_LIB      "Enable library mode input plugin"   Yes)
 option(WITH_IN_SERIAL   "Enable Serial input plugin"         Yes)
 option(WITH_IN_STDIN    "Enable Standard input plugin"       Yes)
+option(WITH_IN_LUA      "Enable Lua input plugin"            Yes)
 option(WITH_IN_MQTT     "Enable MQTT Broker input plugin"     No)
 option(WITH_OUT_FLUENTD "Enable Fluentd output plugin"       Yes)
 option(WITH_OUT_TD      "Enable Treasure Data output plugin" Yes)
