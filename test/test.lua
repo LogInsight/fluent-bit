@@ -1,8 +1,5 @@
-local fork = require("fork")
 
-fork.fork()
-
-fork.write1(fork.read())
-
-fork.write("main end.\r\n")
-
+write('{"abc":"efg"}\n')
+print ("1")
+write('{123:456}\n')
+print("2")
