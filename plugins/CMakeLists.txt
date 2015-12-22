@@ -43,6 +43,7 @@ endif()
 
 REGISTER_IN_PLUGIN("in_xbee")
 REGISTER_IN_PLUGIN("in_http")
+REGISTER_IN_PLUGIN("in_lua")
 REGISTER_IN_PLUGIN("in_serial")
 REGISTER_IN_PLUGIN("in_stdin")
 REGISTER_IN_PLUGIN("in_mqtt")
