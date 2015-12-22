@@ -30,7 +30,12 @@
     lua_pushinteger(L, s);\
     lua_setfield(L, -2, #s);
 
+#define DATA_HEAD_LEN    5
+
 const unsigned int  g_cus_version = 1;
+const unsigned int g_ui_send_buf_len = (1 << 20) + 128;
+
+static unsigned int g_ui_data_len = 0;
 
 static int g_i_epoll_fd = -1;
 static int g_i_inotify_fd = -1;
@@ -43,7 +48,6 @@ static unsigned int  g_ui_host = 0;
 static int g_i_current_fd = -1;
 
 static char *g_pc_send_buf = NULL;
-static unsigned int g_ui_send_buf_len = 0;
 
 
 int socket_send_recv(void *pSendBuf, unsigned int uiSendLen, void *pRecvBuf, unsigned int uiRecvLen)
@@ -265,26 +269,26 @@ int file_init(lua_State *L)
 {
 
     unsigned short us_port = 0;
-	int i_timeout = -1;
+    int i_timeout = -1;
     unsigned int ui_buf_len = 0;
     const char *cpc_ip = NULL;
     struct epoll_event st_epoll_event;
 
-	i_timeout = luaL_checknumber(L, 1);
+    i_timeout = luaL_checknumber(L, 1);
     ui_buf_len = luaL_checknumber(L, 2);
     cpc_ip = luaL_checkstring(L,3);
     us_port = luaL_checknumber(L, 4);
     g_ui_host = inet_addr(luaL_checkstring(L, 5));
 
     assert(ui_buf_len > 0 && ui_buf_len <= 64);
-	if (i_timeout >= 0)
-	{
-	    g_i_timeout *= i_timeout;
-	}
-	else
-	{
-	    g_i_timeout = -1;
-	}
+    if (i_timeout >= 0)
+    {
+        g_i_timeout *= i_timeout;
+    }
+    else
+    {
+        g_i_timeout = -1;
+    }
 
     g_ui_buf_len = ui_buf_len << 20;
     g_pc_buf = (char *)malloc(g_ui_buf_len);
@@ -294,7 +298,6 @@ int file_init(lua_State *L)
         exit(0);
     }
 
-    g_ui_send_buf_len = g_ui_buf_len + 128;
     g_pc_send_buf = (char *)malloc(g_ui_send_buf_len);
     if(NULL == g_pc_send_buf)
     {
@@ -329,24 +332,74 @@ int file_init(lua_State *L)
         exit(0);
     }
 
-	st_epoll_event.events = EPOLLIN|EPOLLHUP;
-	st_epoll_event.data.fd = g_i_inotify_fd;
-	epoll_ctl(g_i_epoll_fd, EPOLL_CTL_ADD, g_i_inotify_fd, &st_epoll_event);
+    st_epoll_event.events = EPOLLIN|EPOLLHUP;
+    st_epoll_event.data.fd = g_i_inotify_fd;
+    epoll_ctl(g_i_epoll_fd, EPOLL_CTL_ADD, g_i_inotify_fd, &st_epoll_event);
+    g_ui_data_len = DATA_HEAD_LEN;
+    return 0;
+}
+
+int file_data_save(lua_State *L)
+{
+    const char *cpc_data = luaL_checkstring(L, 1);
+    int iReadLen = -1;
+    unsigned int ui_data_len = luaL_checknumber(L, 2);
+    unsigned int *puiLen;
+    DATA_HEAD_RES_S *pstRes;
+
+
+    if ((g_ui_data_len + ui_data_len) > g_ui_send_buf_len)
+    {
+        puiLen = (unsigned int *)g_pc_send_buf;
+        *puiLen = htonl(g_ui_data_len - sizeof(int));
+        ++ puiLen;
+        *((unsigned char *)puiLen) = DATA_PACK;
+        pstRes = (DATA_HEAD_RES_S *)g_pc_send_buf;
+
+        iReadLen = socket_send_recv(g_pc_send_buf, g_ui_data_len, g_pc_send_buf, g_ui_send_buf_len);
+        if (iReadLen < 0)
+        {
+            printf("send and recv error.\r\n");
+        }
+        else if (ntohs(pstRes->usStatus) != RET_STATUS_OK)
+        {
+            printf("cache error code %d.\r\n", ntohs(pstRes->usStatus));
+        }
+
+        g_ui_data_len = DATA_HEAD_LEN;
+    }
+
+    memcpy(g_pc_send_buf + g_ui_data_len, cpc_data, ui_data_len);
+    g_ui_data_len += ui_data_len;
     return 0;
 }
 
 int file_data_send(lua_State *L)
 {
-    const char *cpc_data = luaL_checkstring(L, 1);
-    unsigned int ui_data_len = luaL_checknumber(L, 2);
-    DATA_HEAD_REQ_S stReq;
+    //DATA_HEAD_REQ_S stReq;
     int i_read_len = 0;
+    unsigned int *puiTmp = (unsigned int *)g_pc_send_buf;
     DATA_HEAD_RES_S *pstRes = (DATA_HEAD_RES_S *)g_pc_send_buf;
-    stReq.uiDataLen = htonl(ui_data_len);
-    i_read_len = data_encode(DATA_PACK, &stReq, sizeof(stReq), (void *)cpc_data, ui_data_len, g_pc_send_buf, g_ui_send_buf_len);
-    i_read_len = socket_send_recv(g_pc_send_buf, i_read_len, g_pc_send_buf, g_ui_send_buf_len);
-    //printf("data status %d\r\n", ntohs(pstRes->usStatus));
-    //数据解析
+
+    if (g_ui_data_len > DATA_HEAD_LEN)
+    {
+        *puiTmp = (unsigned int)htonl(g_ui_data_len - sizeof(int));
+        ++puiTmp;
+        *((unsigned char *) puiTmp) = DATA_PACK;
+
+        i_read_len = socket_send_recv(g_pc_send_buf, g_ui_data_len, g_pc_send_buf, g_ui_send_buf_len);
+        if (i_read_len < 0)
+        {
+            printf("data send error.\r\n");
+        }
+        else if (ntohs(pstRes->usStatus) != RET_STATUS_OK)
+        {
+            printf("error code: %d", ntohs(pstRes->usStatus));
+        }
+
+        g_ui_data_len = DATA_HEAD_LEN;
+    }
+
     return 0;
 }
 
@@ -370,24 +423,24 @@ int file_add_watch_path(lua_State *L)
 
 int file_open(lua_State *L)
 {
-	unsigned int ui_seek_pos = 0;
-	const char *cpc_path = luaL_checkstring(L, 1);
+    unsigned int ui_seek_pos = 0;
+    const char *cpc_path = luaL_checkstring(L, 1);
 
-	assert(NULL != cpc_path);
-	ui_seek_pos = luaL_checknumber(L, 2);
-		
-	int fd = open(cpc_path, O_RDONLY);
-	if (fd < 0)
-	{
-		printf("open file %s failed.\r\n", cpc_path);
-		lua_pushnil(L);
-		return 1;
-	}
+    assert(NULL != cpc_path);
+    ui_seek_pos = luaL_checknumber(L, 2);
 
-	if (ui_seek_pos > 0)
-	{
-		lseek(fd, ui_seek_pos, SEEK_SET);
-	}
+    int fd = open(cpc_path, O_RDONLY);
+    if (fd < 0)
+    {
+        printf("open file %s failed.\r\n", cpc_path);
+        lua_pushnil(L);
+        return 1;
+    }
+
+    if (ui_seek_pos > 0)
+    {
+        lseek(fd, ui_seek_pos, SEEK_SET);
+    }
     else if (ui_seek_pos == -1)
     {
         ui_seek_pos = lseek(fd, 0, SEEK_END);
@@ -564,8 +617,10 @@ static luaL_Reg mylibs[] = {
     {"deinit", file_deinit},
     {"read_lines", file_data_read},
     {"send", file_data_send},
+    {"cache", file_data_save},
     {NULL, NULL}
 };
+
 
 
 int luaopen_inotify(lua_State *L)
@@ -596,8 +651,6 @@ int luaopen_inotify(lua_State *L)
     register_constant(IN_UNMOUNT);
     return 1;
 }
-
-
 
 
 

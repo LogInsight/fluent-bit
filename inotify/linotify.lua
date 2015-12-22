@@ -34,7 +34,7 @@ function exports.data_send(lines)
         for _, line in pairs(lines) do
 --            inotify.send(line, #line)
             --event_num = event_num + 1
-            send_data = send_data .. line
+--            send_data = send_data .. line
 --[[
             event_num = event_num + 1
             if event_num >= 10000 then
@@ -44,9 +44,10 @@ function exports.data_send(lines)
                 send_data = ''
             end
 --]]
+            inotify.cache(line, #line)
         end
 --        print("end", #send_data)
-        inotify.send(send_data, #send_data)
+        inotify.send()
     end
 end
 
