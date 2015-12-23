@@ -17,6 +17,51 @@ TODO
  
  4 在 in_lua 插件中, 调用 loglunatic
  
-设定配置文件格式
  
+设定配置文件格式
+=======================
  1 因为 配置文件为 Python 生成的, 需要 LUA 和 Python 都便于支持的配置文件格式
+ 
+在 flb 中， 使用 monkey 库 提供的 配置文件解析模块进行配置文件读取， 配置文件类似 INI；
+
+对应到 LUA Input 中， 采用如下的形式
+
+[FileInput]             # FileInput 实际就是 LUA Input， 因为默认就是 LUA 的， 不额外体现 LUA
+  # 下面， 每个 带 input 前缀的 key 是 一个 有效的数据, 形如
+  input_nginx_access = True
+  在 节
+  [FileInput:nginx_access]
+  中， 含有对具体输入条目的配置
+  ;
+  当 对应的值为 False 或 0， 则 该数据输入不启用
+  
+  在 具体的条目下， 有如下输入项
+  - hostname  当前主机名称， 在全局配置文件中也有， 这个主机名称由用户注册当前主机时指定，也可自动计算
+  - journal_directory 记录当前文件数据传输位置的文件，为一个 JSON （或纯文本？）
+  - log_directory 要监控的日志文件
+  - file_match  监控文件名的 match， 因为日志目录可能有多种文件
+  - rescan_interval 重新的扫描、读取间隔
+  - priority 符合 file_match 规则的文件的前后排序规则，只有最前面的才会被实时监控
+
+[Exec]              # 实际就是定期执行一个 命令，从其 stdout 或/和 stderr 中读取数据记录（作为日志）
+  每个带 exec_ 的 key 是一个 需要定期执行的 命令， 命令可以是 shell ，也可以是 lua 脚本
+  [Exec:up_time]
+    - hostname
+    - refresh_interval  重新执行的时间
+    - watch = [stdout | stderr | both]      # 当为 both 时，一次执行，出现两条日志
+    - shell 如果出现此条，表示是需要定时执行一个 shell 命令
+    - call  调用一段系统(用户)预制的 lua 脚本
+
+[Stat]
+    类似 exec ，但是需要保证每次执行都返回一个或一组特定格式的数据
+    - hostname
+    - refresh_interval  重新执行的时间
+    - format 文本数据的格式
+    
+    
+  
+
+    
+  
+ 
+ 
