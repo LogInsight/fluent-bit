@@ -28,7 +28,6 @@
 #include <fluent-bit/flb_input.h>
 #include <fluent-bit/flb_config.h>
 #include <fluent-bit/flb_pack.h>
-
 #include "in_lua.h"
 
 /* Initialize plugin */
@@ -44,6 +43,27 @@ int in_lua_init(struct flb_config *config)
         return -1;
     }
 
+    /* read the configure */
+    {
+        struct mk_rconf *conf = config->file;
+        struct mk_rconf_section *section;
+        if (conf) {
+            section = mk_rconf_section_get(conf, "FILE");
+            section = mk_rconf_section_get(conf, "File:nginx_access");
+            if (section) {
+                /* Validate TD section keys */
+                //config->listen = mk_rconf_section_get_key(section, "Listen", MK_RCONF_STR);
+                //config->tcp_port = mk_rconf_section_get_key(section, "Port", MK_RCONF_STR);
+                // enum all keys
+                struct mk_rconf_entry *entry;
+                struct mk_list *head;
+                mk_list_foreach(head, &section->entries){
+                    entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+                    printf("section key= %s\n", entry->key);
+                }
+            }
+        }
+    }
     /* initialize MessagePack buffers */
     msgpack_sbuffer_init(&ctx->mp_sbuf);
     msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
