@@ -16,6 +16,26 @@ TODO
  3 让 原型系统 https://github.com/arekinath/loglunatic/ 可以将采集到的日志数据输出的标准输出
  
  4 在 in_lua 插件中, 调用 loglunatic
+
+Embed LUA in C
+===========================
+需要的动作，
+
+- 确定最新的文件
+- 安排文件上传？   -> python script
+- 处理过滤最新的文件
+- 安排 多行事件的起始、结束 Token   
+- 对数据进行过滤       -> 使用 msgpack 编码？       单行事件, 多行事件... 
+- 注册文件是否监控？
+- 
+1 create a input reactor in  LUA, pass all configure keys
+    - create_file_input
+    - get_file_input
+      
+2 reg file to mon
+3 notify to lua if inotify
+
+
  
  
 设定配置文件格式
