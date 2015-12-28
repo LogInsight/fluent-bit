@@ -81,7 +81,53 @@ Embed LUA in C
 ！！！ 此配置文件的格式要求比较严格，需要严格缩进    
   
 
+系统启动的流程
+
+1 [C] 从配置文件中读取要监控那些日志输入
+    - 具体的文件
+    或
+    - 候选的文件列表
+  
+  init_file(global, stream_key, config) 
+  init_exec(global, stream_key, config)
+  init_stat(global, stream_key, config)
+  
+2 [LUA] 对于具体的文件， 直接加入 监控队列
+    watch_file
+3 [LUA] 对于候选的文件列表， 根据某些具体规则加入监控队列 或 安排上传
+    watch_file
+    schedule_upload
+4 前述的流程 传入当前输入的全部配置信息，作为 hash_table
+5 [LUA] 对于需要监控的目录, 需要注册一个回调函数
+    watch_path(path_name, call_back)
+
+<需要定时执行的情况>    
+2 [LUA] LUA 端不实际执行，至少定时收到 std_out 和 std_err 进行数据解析，
+  解析完毕后， 调用
+     send_event(stream_key, the_event)
+  - 在 插件一层，可以 通过 stream_key 对 输入进行追踪
+    不明面上调用 获取当前时间，由 API 内部读取当前时间
     
+<对于 stat>    
+2 [LUA] 定时接受输入，进行解析
+    解析完毕后，调用
+    send_metric_string(stream_key, metric_key, value)
+    send_metric_integer(stream_key, metric_key, value)
+    send_metric_double(stream_key, metric_key, value)
+    不明面上调用 获取当前时间，由 API 内部读取当前时间
+   
+<当收到数据时>
+  
+2  [LUA] 对一批数据进行解析，然后重新编码
+  
+    process(global, input_msg_enc_data)
+    
+    send_to_server(global, output_msg_enc_data）
+    
+    编码的信息应该包括 stremd_id，raw_data
+    
+    lua 脚本 调用 各个 input 的实际数据处理函数( 根据 stream_id 的映射关系表 ）
+
   
  
  
