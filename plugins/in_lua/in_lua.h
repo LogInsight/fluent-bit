@@ -36,6 +36,84 @@ struct flb_in_lua_config {
     struct msgpack_packer mp_pck;    /* msgpack packer         */
 };
 
+struct flb_in_lua_file{
+    char *hostname;
+    char *joural_directory;
+    char *log_directory;
+    char *file_match;
+    char *priority;
+    int rescan_interval;
+};
+
+struct flb_in_lua_exec{
+    char *hostname;
+    int refresh_interval;
+    char *watch;
+    char *shell;
+    char *call;
+};
+
+struct flb_in_lua_stat{
+    char *hostname;
+    int refresh_interval;
+    char *format;
+};
+/*
+#define SET_format(_conf, _format) {\
+    _conf->format = _format; \
+}
+
+#define SET_call(_conf, _call) {\
+    _conf->call = _call; \
+}
+
+#define SET_shell(_conf, _shell) {\
+    _conf->shell = _shell; \
+}
+
+#define SET_watch(_conf, _watch) {\
+    _conf->watch = _watch; \
+}
+
+#define SET_refresh_interval(_conf, _refresh_interval) { \
+    _conf->refresh_interval = aton(_refresh_interval); \
+}
+
+#define SET_hostname(_conf, _hostname) { \
+    _conf->hostname = _hostname; \
+}
+
+#define SET_joural_directory(_conf, _joural_directory) { \
+    _conf->joural_directory = _joural_directory; \
+}
+
+#define SET_log_directory(_conf, _log_directory) { \
+    _conf->log_directory = _log_directory; \
+}
+
+#define SET_file_match(_conf, _file_match) {\
+    _conf->file_match = _file_match; \
+}
+
+#define SET_priority(_conf, _priority) {\
+    _conf->priority = _priority;\
+}
+
+#define SET_rescan_interval(_conf, _rescan_interval) { \
+    _conf->rescan_interval = _aton(rescan_interval); \
+}
+
+#define SET_CONF_Field(_conf, _key, _val) {\
+    SET_##_key((_conf), (_val));\
+}
+*/
+/*
+void FILE_SET_hostname(struct flb_in_lua_file *conf, char * hostname)
+{
+    conf->hostname = hostname;
+    return;
+}
+*/
 int in_lua_init(struct flb_config *config);
 int in_lua_collect(struct flb_config *config, void *in_context);
 void *in_lua_flush(void *in_context, int *size);

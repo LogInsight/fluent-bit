@@ -7,4 +7,4 @@ set(src
   in_lua.c
   ../../src/flb_pack.c)
 
-FLB_PLUGIN(in_lua "${src}" "jsmn")
+FLB_PLUGIN_3(in_lua "${src}" "jsmn")

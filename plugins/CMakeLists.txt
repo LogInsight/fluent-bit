@@ -29,6 +29,12 @@ macro(FLB_PLUGIN name src deps)
   target_link_libraries(flb-plugin-${name} msgpack-static ${deps})
 endmacro()
 
+macro(FLB_PLUGIN_3 name src deps)
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+  add_library(flb-plugin-${name} STATIC ${src})
+  target_link_libraries(flb-plugin-${name} lua5.1 msgpack-static ${deps})
+endmacro()
+
 
 # ======================
 #  Plugins Registration
