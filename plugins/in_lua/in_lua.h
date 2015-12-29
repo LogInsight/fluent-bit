@@ -32,9 +32,11 @@ struct flb_in_lua_config {
     char buf[8192 * 2];               /* read buffer: 16Kb max */
 
     int buffer_id;
-    struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer        */
-    struct msgpack_packer mp_pck;    /* msgpack packer         */
-    void* lua_state;                 /* lua 的执行上下文  */
+    struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer             */
+    struct msgpack_packer mp_pck;    /* msgpack packer              */
+    void* lua_state;                 /* lua 的执行上下文              */
+    char* lua_engine;
+    struct mk_list * lua_paths;  /* lua 加载用户脚本使用的路径     */
 };
 
 struct flb_in_lua_file{

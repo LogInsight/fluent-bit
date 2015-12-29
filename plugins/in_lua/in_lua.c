@@ -126,6 +126,34 @@ int in_lua_get_pipe()
     return 0;
 }
 
+/* ----- lua helper ----- */
+int set_lua_path( lua_State* L, const char* lua_path, size_t lua_path_length)
+{
+    lua_getglobal( L, "package" );
+    lua_getfield( L, -1, "path" ); // get field "path" from table at top of stack (-1)
+    const char* cur_path = lua_tostring( L, -1 ); // grab path string from top of stack
+    size_t cur_path_length = strlen(cur_path);
+    char* target_path = malloc(sizeof(char)*( cur_path_length + lua_path_length + 2 ));   // 1 -> ;  1->\0
+    memcpy(target_path, cur_path, cur_path_length);
+    target_path[cur_path_length] = ';';
+    memcpy(&(target_path[cur_path_length+1]), lua_path, lua_path_length);
+    target_path[cur_path_length + lua_path_length + 1] = 0;
+
+    lua_pop( L, 1 ); // get rid of the string on the stack we just pushed on line 5
+    lua_pushstring( L, target_path ); // push the new one
+    lua_setfield( L, -2, "path" ); // set the field "path" in table at -2 with value at top of stack
+    lua_pop( L, 1 ); // get rid of package table from top of stack
+    return 0; // all done!
+}
+
+void in_lua_require(lua_State *L, const char *name, const char* global_name) {
+    lua_getglobal(L, "require");
+    lua_pushstring(L, name);
+    lua_call(L, 1, 0);
+    //lua_setglobal(L, global_name);
+}
+
+/* ------- do init [ file | exec | stat ] ------- */
 void in_lua_file_conf(struct mk_rconf *conf, char *key)
 {
 
@@ -190,17 +218,57 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 
     /* 初始化系统的环境变量 */
     {
+        int status, result;
+        struct mk_string_line *lua_path_entry;
         lua_State *L = (lua_State*)ctx->lua_state;
         section = mk_rconf_section_get(conf, "LS");
         if (section) {
             /* Validate TD section keys */
-            if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_debug", MK_RCONF_BOOL))
-                luaopen_debug(L);
-            if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_package", MK_RCONF_BOOL))
-                luaopen_package(L);
+            if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_debug", MK_RCONF_BOOL)) {
+                // luaopen_debug
+                lua_pushcfunction(L, luaopen_debug);
+                lua_pushstring(L, "");
+                lua_call(L, 1, 0);
+            }
+
+            if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_package", MK_RCONF_BOOL)) {
+                // luaopen_package
+                lua_pushcfunction(L, luaopen_package);
+                lua_pushstring(L, "");
+                lua_call(L, 1, 0);
+            }
+
+            ctx->lua_paths = mk_rconf_section_get_key(section, "lua_path", MK_RCONF_LIST);
+            // set package path
+            /*
+            mk_list_foreach(head, ctx->lua_paths) {
+                lua_path_entry = mk_list_entry(head, struct mk_string_line, _head);
+                printf("got lua_path as %s\n", lua_path_entry->val);
+                set_lua_path(L, lua_path_entry->val, (size_t)lua_path_entry->len);
+            }*/
+            // end check path
         }
-        // set package path
         // load the package
+        /*
+         * - 最初的设计为 通过 require 动态加载
+         * - 实际实现为， 直接执行制定的 LUA 脚本， 读取脚本中、调用 定义的 全局函数
+         * */
+        ctx->lua_engine = mk_rconf_section_get_key(section, "lua_engine", MK_RCONF_STR);
+        printf("lua_engine = %s\n", ctx->lua_engine);
+        status = luaL_loadfile(L, ctx->lua_engine);
+        if (status) {
+            /* If something went wrong, error message is at the top of */
+            /* the stack */
+            fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
+            exit(1);
+        }
+        /* Ask Lua to run our little script */
+        result = lua_pcall(L, 0, LUA_MULTRET, 0);
+        if (result) {
+            fprintf(stderr, "Failed to start script: %s\n", lua_tostring(L, -1));
+            exit(1);
+        }
+        //in_lua_require(L, ctx->lua_engine, "_ls_engine");
     }
     section = mk_rconf_section_get(conf, "FILE");
     if (section)
@@ -260,10 +328,22 @@ int in_lua_exit(void *in_context, struct flb_config *config)
 {
     /* 必须关闭 LUA 虚拟机， 让 LUA 端 可以释放资源 */
     struct flb_in_lua_config *ctx = in_context;
-    lua_State *L = ctx->lua_state;
+    if(ctx->lua_state) {
+        lua_State *L = ctx->lua_state;
 
-    flb_debug("[in_lua] shutdown lua engine...");
-    lua_close(L);
+        flb_debug("[in_lua] shutdown lua engine...");
+        lua_close(L);
+        ctx->lua_state = NULL;
+    }
+    /* free config->index_files */
+    if (ctx->lua_paths) {
+        mk_string_split_free(ctx->lua_paths);
+    }
+
+    /* clear msgpackbuf */
+    msgpack_sbuffer_destroy(&ctx->mp_sbuf);
+    // msgpack_packer_free // 因为 init 实际是 in-place 初始化， 此处不 free
+    // msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
     return 0;
 }
 
@@ -280,17 +360,37 @@ int in_lua_init(struct flb_config *config)
     if (!ctx) {
         return -1;
     }
-    /* 初始化 LUA 环境 */
-    lua_State *L = luaL_newstate();
-    ctx->lua_state = L;
-    // using as sanbox
-    luaopen_base(L);
-    luaopen_table(L);
-    //luaopen_io(L);
-    //luaopen_os(L);
-    luaopen_string(L);
-    luaopen_math(L);
-    // load _debug & _package in in_lua_config
+    ctx->lua_paths = NULL;
+    ctx->lua_state = NULL;
+    {
+        /* 初始化 LUA 环境 */
+        lua_State *L = lua_open();
+        ctx->lua_state = L;
+        // using as sanbox
+        //luaopen_base(L);
+        lua_pushcfunction(L, luaopen_base);
+        lua_pushstring(L, "");
+        lua_call(L, 1, 0);
+
+        //luaopen_table(L);
+        lua_pushcfunction(L, luaopen_table);
+        lua_pushstring(L, "");
+        lua_call(L, 1, 0);
+
+        //luaopen_string(L);
+        lua_pushcfunction(L, luaopen_string);
+        lua_pushstring(L, "");
+        lua_call(L, 1, 0);
+
+        //luaopen_math(L);
+        lua_pushcfunction(L, luaopen_math);
+        lua_pushstring(L, "");
+        lua_call(L, 1, 0);
+
+        //luaopen_io(L);
+        //luaopen_os(L);
+        // load _debug & _package in in_lua_config
+    }
     /* read the configure */
     in_lua_config(ctx, config->file);
 
