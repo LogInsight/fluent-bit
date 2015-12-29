@@ -33,10 +33,21 @@
 #include <lua5.1/lualib.h>
 
 #include "in_lua.h"
-
 static int gai_pipe_fd_data[2] = {};
 static int gai_pipe_fd_control[2] = {};
 
+
+void in_lua_file_conf(struct mk_rconf *conf, char *key);
+void in_lua_exec_conf(struct mk_rconf *conf, char *key);
+void in_lua_stat_conf(struct mk_rconf *conf, char *key);
+
+static struct flb_in_lua_callback gst_config_call[config_max] = {
+    [config_file] = {"FILE", "file_", "File:", in_lua_file_conf},
+    [config_exec] = {"EXEC", "exec_", "Exec:", in_lua_exec_conf},
+    [config_stat] = {"STAT", "stat_", "Stat:", in_lua_stat_conf}
+};
+
+static struct flb_in_lua_global gst_global_config;
 
 int pipe_write_data(lua_State *L)
 {
@@ -140,32 +151,116 @@ void in_lua_file_conf(struct mk_rconf *conf, char *key)
         {
             entry = mk_list_entry(head, struct mk_rconf_entry, _head);
             printf("section key = %s, val = %s\n", entry->key, entry->val);
-            if (0 == strcasecmp(entry->key, "hostname")) {
-                //SET_CONF_Field(&file, hostname, entry->val);
-                file.hostname = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "jounal_directory")) {
-                //SET_CONF_Field(&file, jounal_directory, entry->val);
-                file.joural_directory = entry->val;
+
+            if(0 == strcasecmp(entry->key, "journal_directory")) {
+                file.journal_directory = entry->val;
             }
             else if(0 == strcasecmp(entry->key, "log_directory")) {
-                //SET_CONF_Field(&file, log_directory, entry->val);
                 file.log_directory = entry->val;
             }
             else if(0 == strcasecmp(entry->key, "file_match")) {
-                //SET_CONF_Field(&file, file_match, entry->val);
                 file.file_match = entry->val;
             }
             else if(0 == strcasecmp(entry->key, "rescan_interval")) {
-                //SET_CONF_Field(&file, rescan_interval, entry->val);
                 file.rescan_interval = atoi(entry->val);
             }
             else if(0 == strcasecmp(entry->key, "priority")) {
-                //SET_CONF_Field(&file, priority, entry->val);
                 file.priority = entry->val;
             }
             else {
-                printf("config [%s] not support %s", key, entry->key);
+                printf("config [%s] not support %s.\r\n", key, entry->key);
+            }
+        }
+    }
+}
+
+void in_lua_exec_conf(struct mk_rconf *conf, char *key)
+{
+
+    struct flb_in_lua_exec file;
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+    section = mk_rconf_section_get(conf, key);
+    if (section)
+    {
+        mk_list_foreach(head, &section->entries)
+        {
+            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+            printf("section key = %s, val = %s\n", entry->key, entry->val);
+            if(0 == strcasecmp(entry->key, "watch")) {
+                file.watch = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "shell")) {
+                file.shell = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "call")) {
+                file.call = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
+                file.refresh_interval = atoi(entry->val);
+            }
+            else {
+                printf("config [%s] not support %s.\r\n", key, entry->key);
+            }
+        }
+    }
+}
+
+void in_lua_stat_conf(struct mk_rconf *conf, char *key)
+{
+
+    struct flb_in_lua_stat file;
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+    section = mk_rconf_section_get(conf, key);
+    if (section)
+    {
+        mk_list_foreach(head, &section->entries)
+        {
+            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+            printf("section key = %s, val = %s\n", entry->key, entry->val);
+
+            if(0 == strcasecmp(entry->key, "format")) {
+                file.format = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
+                file.refresh_interval = atoi(entry->val);
+            }
+            else {
+                printf("config [%s] not support %s.\r\n", key, entry->key);
+            }
+        }
+    }
+}
+
+void in_lua_global_config(struct mk_rconf *conf)
+{
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+    memset(&gst_global_config, 0, sizeof(gst_global_config);
+
+    section = mk_rconf_section_get(conf, "LS");
+    if (section)
+    {
+        mk_list_foreach(head, &section->entries)
+        {
+            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+            printf("section key = %s, val = %s\n", entry->key, entry->val);
+
+            if(0 == strcasecmp(entry->key, "hostname")) {
+                gst_global_config.hostname = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
+                gst_global_config.refresh_interval = atoi(entry->val);
+            }
+            else {
+                printf("config [LS] not support %s.\r\n", entry->key);
             }
         }
     }
@@ -177,63 +272,44 @@ void in_lua_config(struct mk_rconf *conf)
     {
         return;
     }
-    struct mk_rconf_section *section;
 
+    int loop_num = 0;
+    struct mk_rconf_section *section;
     struct mk_rconf_entry *entry;
     struct mk_list *head;
 
+    in_lua_global_config(conf);
 
-    section = mk_rconf_section_get(conf, "FILE");
-    if (section)
+    for (loop_num = 0; loop_num < config_max; loop_num ++)
     {
-        mk_list_foreach(head, &section->entries)
+        section = mk_rconf_section_get(conf, gst_config_call[loop_num].key);
+        if (section)
         {
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("FILE key = %s, val = %s\n", entry->key, entry->val);
-
-            if (0 == strcasecmp(entry->val, MK_RCONF_ON))
+            mk_list_foreach(head, &section->entries)
             {
-                in_lua_file_conf(conf, entry->key);
+                entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+                printf("FILE key = %s, val = %s\n", entry->key, entry->val);
+
+                if (0 == strcasecmp(entry->val, MK_RCONF_ON))
+                {
+                    if (0 == strncasecmp(entry->key,
+                                         gst_config_call[loop_num].prefix,
+                                         strlen(gst_config_call[loop_num].prefix))) {
+                        memcpy(entry->key,
+                               gst_config_call[loop_num].layer_prefix,
+                               strlen(gst_config_call[loop_num].prefix));
+
+                        gst_config_call[loop_num].pfunc(conf, entry->key);
+                    }
+                    else {
+                        printf("config prefix of %s in [%s] is wrong. should be \"file_\"\r\n",
+                               entry->key,
+                               gst_config_call[loop_num].key);
+                    }
+                }
             }
         }
     }
-
-    section = mk_rconf_section_get(conf, "EXEC");
-    if (section)
-    {
-        mk_list_foreach(head, &section->entries)
-        {
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("FILE key = %s, val = %s\n", entry->key, entry->val);
-        }
-    }
-
-    section = mk_rconf_section_get(conf, "STAT");
-    if (section)
-    {
-        mk_list_foreach(head, &section->entries)
-        {
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("FILE key = %s, val = %s\n", entry->key, entry->val);
-        }
-    }
-
-
-    /*
-    section = mk_rconf_section_get(conf, "File:nginx_access");
-    if (section) {
-        // Validate TD section keys
-        //config->listen = mk_rconf_section_get_key(section, "Listen", MK_RCONF_STR);
-        //config->tcp_port = mk_rconf_section_get_key(section, "Port", MK_RCONF_STR);
-        // enum all keys
-        //struct mk_rconf_entry *entry;
-        //struct mk_list *head;
-        mk_list_foreach(head, &section->entries){
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("section key= %s\n", entry->key);
-        }
-    }
-*/
 }
 
 /* Initialize plugin */

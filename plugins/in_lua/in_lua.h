@@ -37,8 +37,7 @@ struct flb_in_lua_config {
 };
 
 struct flb_in_lua_file{
-    char *hostname;
-    char *joural_directory;
+    char *journal_directory;
     char *log_directory;
     char *file_match;
     char *priority;
@@ -46,7 +45,6 @@ struct flb_in_lua_file{
 };
 
 struct flb_in_lua_exec{
-    char *hostname;
     int refresh_interval;
     char *watch;
     char *shell;
@@ -54,10 +52,31 @@ struct flb_in_lua_exec{
 };
 
 struct flb_in_lua_stat{
-    char *hostname;
     int refresh_interval;
     char *format;
 };
+
+struct flb_in_lua_global{
+    int refresh_interval;
+    char *hostname;
+};
+
+enum config_key{
+    config_file = 0,
+    config_exec,
+    config_stat,
+    config_max
+};
+
+typedef void (*in_lua_config_layer_two)(struct mk_rconf *, char *);
+
+struct flb_in_lua_callback{
+    char *key;
+    char *prefix;
+    char *layer_prefix;
+    in_lua_config_layer_two pfunc;
+};
+
 /*
 #define SET_format(_conf, _format) {\
     _conf->format = _format; \
@@ -121,3 +140,4 @@ void *in_lua_flush(void *in_context, int *size);
 extern struct flb_input_plugin in_lua_plugin;
 
 #endif
+
