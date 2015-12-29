@@ -172,9 +172,14 @@ void in_lua_file_conf(struct mk_rconf *conf, char *key)
     }
 }
 
-void in_lua_config(struct mk_rconf *conf)
+
+void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 {
-    if (NULL == conf)
+    /*
+     * 从文件中加载 配置信息
+     * */
+
+    if (NULL == conf || NULL == ctx)
     {
         return;
     }
@@ -183,7 +188,20 @@ void in_lua_config(struct mk_rconf *conf)
     struct mk_rconf_entry *entry;
     struct mk_list *head;
 
-
+    /* 初始化系统的环境变量 */
+    {
+        lua_State *L = (lua_State*)ctx->lua_state;
+        section = mk_rconf_section_get(conf, "LS");
+        if (section) {
+            /* Validate TD section keys */
+            if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_debug", MK_RCONF_BOOL))
+                luaopen_debug(L);
+            if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_package", MK_RCONF_BOOL))
+                luaopen_package(L);
+        }
+        // set package path
+        // load the package
+    }
     section = mk_rconf_section_get(conf, "FILE");
     if (section)
     {
@@ -237,6 +255,18 @@ void in_lua_config(struct mk_rconf *conf)
 */
 }
 
+/* Cleanup lua input */
+int in_lua_exit(void *in_context, struct flb_config *config)
+{
+    /* 必须关闭 LUA 虚拟机， 让 LUA 端 可以释放资源 */
+    struct flb_in_lua_config *ctx = in_context;
+    lua_State *L = ctx->lua_state;
+
+    flb_debug("[in_lua] shutdown lua engine...");
+    lua_close(L);
+    return 0;
+}
+
 /* Initialize plugin */
 int in_lua_init(struct flb_config *config)
 {
@@ -250,8 +280,19 @@ int in_lua_init(struct flb_config *config)
     if (!ctx) {
         return -1;
     }
+    /* 初始化 LUA 环境 */
+    lua_State *L = luaL_newstate();
+    ctx->lua_state = L;
+    // using as sanbox
+    luaopen_base(L);
+    luaopen_table(L);
+    //luaopen_io(L);
+    //luaopen_os(L);
+    luaopen_string(L);
+    luaopen_math(L);
+    // load _debug & _package in in_lua_config
     /* read the configure */
-    in_lua_config(config->file);
+    in_lua_config(ctx, config->file);
 
     /* initialize MessagePack buffers */
     msgpack_sbuffer_init(&ctx->mp_sbuf);
@@ -371,6 +412,7 @@ struct flb_input_plugin in_lua_plugin = {
     .cb_init      = in_lua_init,
     .cb_pre_run   = NULL,
     .cb_collect   = in_lua_collect,
-    .cb_flush_buf = in_lua_flush
+    .cb_flush_buf = in_lua_flush,
+    .cb_exit      = in_lua_exit
 };
 

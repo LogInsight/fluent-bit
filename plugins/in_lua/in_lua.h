@@ -34,6 +34,7 @@ struct flb_in_lua_config {
     int buffer_id;
     struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer        */
     struct msgpack_packer mp_pck;    /* msgpack packer         */
+    void* lua_state;                 /* lua 的执行上下文  */
 };
 
 struct flb_in_lua_file{
