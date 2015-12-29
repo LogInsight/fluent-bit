@@ -28,9 +28,10 @@
 #include <fluent-bit/flb_input.h>
 #include <fluent-bit/flb_config.h>
 #include <fluent-bit/flb_pack.h>
-#include <lua5.1/lua.h>
-#include <lua5.1/lauxlib.h>
-#include <lua5.1/lualib.h>
+/* LUA Include */
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 #include "in_lua.h"
 static int gai_pipe_fd_data[2] = {};
