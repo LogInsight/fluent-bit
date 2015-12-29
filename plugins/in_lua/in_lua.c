@@ -231,7 +231,9 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
                 lua_call(L, 1, 0);
             }
 
-            if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_package", MK_RCONF_BOOL)) {
+            //if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_package", MK_RCONF_BOOL)) {
+            if(1) {
+                // 此处必须为 on ,  因为没有 package 机制，就没有 require
                 // luaopen_package
                 lua_pushcfunction(L, luaopen_package);
                 lua_pushstring(L, "");
@@ -240,21 +242,19 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 
             ctx->lua_paths = mk_rconf_section_get_key(section, "lua_path", MK_RCONF_LIST);
             // set package path
-            /*
             mk_list_foreach(head, ctx->lua_paths) {
                 lua_path_entry = mk_list_entry(head, struct mk_string_line, _head);
-                printf("got lua_path as %s\n", lua_path_entry->val);
+                flb_info("extend_lua_path lua_path = %s", lua_path_entry->val);
                 set_lua_path(L, lua_path_entry->val, (size_t)lua_path_entry->len);
-            }*/
+            }
             // end check path
         }
-        // load the package
         /*
          * - 最初的设计为 通过 require 动态加载
          * - 实际实现为， 直接执行制定的 LUA 脚本， 读取脚本中、调用 定义的 全局函数
          * */
         ctx->lua_engine = mk_rconf_section_get_key(section, "lua_engine", MK_RCONF_STR);
-        printf("lua_engine = %s\n", ctx->lua_engine);
+        flb_info("lua_execute lua_engine = %s", ctx->lua_engine);
         status = luaL_loadfile(L, ctx->lua_engine);
         if (status) {
             /* If something went wrong, error message is at the top of */
@@ -262,12 +262,14 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
             fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
             exit(1);
         }
+        /* TODO: Give the global object here */
         /* Ask Lua to run our little script */
         result = lua_pcall(L, 0, LUA_MULTRET, 0);
         if (result) {
             fprintf(stderr, "Failed to start script: %s\n", lua_tostring(L, -1));
             exit(1);
         }
+        /* TODO: call LUA function from C */
         //in_lua_require(L, ctx->lua_engine, "_ls_engine");
     }
     section = mk_rconf_section_get(conf, "FILE");
