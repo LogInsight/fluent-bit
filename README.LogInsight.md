@@ -56,7 +56,6 @@ Embed LUA in C
   当 对应的值为 False 或 0， 则 该数据输入不启用
   
   在 具体的条目下， 有如下输入项
-  - hostname  当前主机名称， 在全局配置文件中也有， 这个主机名称由用户注册当前主机时指定，也可自动计算
   - journal_directory 记录当前文件数据传输位置的文件，为一个 JSON （或纯文本？）
   - log_directory 要监控的日志文件
   - file_match  监控文件名的 match， 因为日志目录可能有多种文件
@@ -66,7 +65,6 @@ Embed LUA in C
 [EXEC]              # 实际就是定期执行一个 命令，从其 stdout 或/和 stderr 中读取数据记录（作为日志）
   每个带 exec_ 的 key 是一个 需要定期执行的 命令， 命令可以是 shell ，也可以是 lua 脚本
   [Exec:up_time]
-    - hostname
     - refresh_interval  重新执行的时间
     - watch = [stdout | stderr | both]      # 当为 both 时，一次执行，出现两条日志
     - shell 如果出现此条，表示是需要定时执行一个 shell 命令
@@ -85,6 +83,9 @@ Embed LUA in C
   存在一系列 lua_ 的扩展
   lua_debug = [ON | OFF] 使用允许使用LUA 的 debug 扩展
   lua_package = [ON | OFF] 是否允许使用 LUA 的 package 扩展
+  lua_paths
+
+  - hostname  当前主机名称， 在全局配置文件中也有， 这个主机名称由用户注册当前主机时指定，也可自动计算
     
 
 系统启动的流程

@@ -5,6 +5,7 @@
 
 set(src
   in_lua.c
+  in_lua_config.c
   ../../src/flb_pack.c)
 
 include_directories(

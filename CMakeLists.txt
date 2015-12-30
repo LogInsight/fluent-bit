@@ -4,6 +4,15 @@ project(fluent-bit)
 
 include(GNUInstallDirs)
 
+IF(APPLE)
+  CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12 FATAL_ERROR)
+  CMAKE_POLICY(VERSION 2.8.12)
+  SET(CMAKE_MACOSX_RPATH TRUE) # @rpath in libs
+ELSE()
+  CMAKE_MINIMUM_REQUIRED(VERSION 2.8 FATAL_ERROR)
+  CMAKE_POLICY(VERSION 2.8)
+ENDIF()
+
 # Output paths
 set(FLB_ROOT "${CMAKE_CURRENT_SOURCE_DIR}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}/bin")
@@ -63,6 +72,15 @@ endif()
 if(WITH_DEBUG)
   set(CMAKE_BUILD_TYPE "Debug")
 endif()
+
+if ( WIN32 AND NOT CYGWIN )
+  #set(LUA_BUILD_AS_DLL 1)
+  #add_definitions ( -DLUA_BUILD_AS_DLL -DLUAJIT_OS=LUAJIT_OS_WINDOWS)
+  #set ( LJVM_MODE coffasm )
+elseif ( APPLE )
+  set ( CMAKE_EXE_LINKER_FLAGS "-pagezero_size 10000 -image_base 100000000 ${CMAKE_EXE_LINKER_FLAGS}" )
+  #set ( LJVM_MODE machasm )
+endif ()
 
 # General Headers
 include_directories(
