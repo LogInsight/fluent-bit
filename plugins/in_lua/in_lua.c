@@ -42,9 +42,9 @@ static int gai_pipe_fd_data[2] = {};
 static int gai_pipe_fd_control[2] = {};
 
 
-void in_lua_file_conf(lua_State *, struct mk_rconf *conf, char *key);
-void in_lua_exec_conf(lua_State *, struct mk_rconf *conf, char *key);
-void in_lua_stat_conf(lua_State *, struct mk_rconf *conf, char *key);
+void in_lua_file_conf(struct flb_in_lua_config *, struct mk_rconf *conf, char *key);
+void in_lua_exec_conf(struct flb_in_lua_config *, struct mk_rconf *conf, char *key);
+void in_lua_stat_conf(struct flb_in_lua_config *, struct mk_rconf *conf, char *key);
 
 
 static struct flb_in_lua_callback gst_config_call[config_max] = {
@@ -54,9 +54,6 @@ static struct flb_in_lua_callback gst_config_call[config_max] = {
 };
 
 static struct flb_in_lua_global gst_global_config;
-static struct flb_in_lua_file_info *g_file_info = NULL;
-static struct flb_in_lua_exec_info *g_exec_info = NULL;
-static struct flb_in_lua_stat_info *g_stat_info = NULL;
 
 static uint32_t time_click_num = 0;
 
@@ -99,9 +96,7 @@ int pipe_read_data(char *pc_buf, const unsigned int ui_buf_len)
     return i_read_len;
 }
 
-//int in_lua_config_record(lua_State *L, )
-
-void in_lua_get_file(lua_State *L, struct flb_in_lua_file_info *file)
+void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file)
 {
     if (file->file_config.log_directory == NULL){
         return;
@@ -119,6 +114,8 @@ void in_lua_get_file(lua_State *L, struct flb_in_lua_file_info *file)
     const char *first = NULL;
     const char *second = NULL;
 
+    lua_State *L = ctx->lua_state;
+
     dir = opendir(file->file_config.journal_directory);
     if (NULL == dir){
         printf("%s open error for %s.\r\n", file->file_config.journal_directory, strerror(errno));
@@ -133,7 +130,6 @@ void in_lua_get_file(lua_State *L, struct flb_in_lua_file_info *file)
     }
 
     luaL_loadfile(L, "test.lua");
-
     while (NULL != (ptr = readdir(dir))) {
         if (ptr->d_name[0] == '.') {
             continue;
@@ -160,7 +156,7 @@ void in_lua_get_file(lua_State *L, struct flb_in_lua_file_info *file)
 
     if (first) {
         if (0 != strcmp(file->file_name, first)) {
-            data_len = snprintf(file->file_name, sizeof(file->file_name), first);
+            data_len = snprintf(file->file_name, sizeof(file->file_name), "%s",first);
             file->file_name[data_len] = '\0';
             file->new_file = true;
         }
@@ -202,8 +198,7 @@ void in_lua_require(lua_State *L, const char *name, const char* global_name) {
 }
 
 /* ------- do init [ file | exec | stat ] ------- */
-// TODO: change to ctx
-void in_lua_file_conf(lua_State *L, struct mk_rconf *conf, char *key)
+void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char *key)
 {
 
     struct flb_in_lua_file_info *file;
@@ -217,14 +212,13 @@ void in_lua_file_conf(lua_State *L, struct mk_rconf *conf, char *key)
 
         file = (struct flb_in_lua_file_info *)malloc(sizeof(struct flb_in_lua_file_info));
         file->file_config.file_match = NULL;
-        file->file_config.journal_directory = "/var/log/lsight";
+        file->file_config.journal_directory = "/var/log/.lsight";
         file->file_config.log_directory = NULL;
         file->file_config.priority = NULL;
         file->file_config.rescan_interval = gst_global_config.refresh_interval;
         file->new_file = false;
         file->file_name[0] = '\0';
         file->file_fd = -1;
-        file->next = NULL;
 
         mk_list_foreach(head, &section->entries)
         {
@@ -251,16 +245,14 @@ void in_lua_file_conf(lua_State *L, struct mk_rconf *conf, char *key)
             }
         }
 
-        in_lua_get_file(L, file);
-        if (NULL != g_file_info){
-            file->next = g_file_info->next;
-        }
-        g_file_info = file;
+        in_lua_get_file(ctx, file);
+        mk_list_add(&file->_head, ctx->file_config);
     }
 
     return;
 }
 
+#if 0
 void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf) {
     /*
      * 从文件中加载 配置信息
@@ -331,8 +323,8 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf) {
         //in_lua_require(L, ctx->lua_engine, "_ls_engine");
     }
 }
-
-void in_lua_exec_conf(lua_State *L, struct mk_rconf *conf, char *key)
+#endif
+void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char *key)
 {
     struct flb_in_lua_exec_info *file;
     struct mk_rconf_section *section;
@@ -351,7 +343,6 @@ void in_lua_exec_conf(lua_State *L, struct mk_rconf *conf, char *key)
         file->exec_config.shell = NULL;
         file->exec_config.watch = NULL;
 
-        file->next = NULL;
 
         mk_list_foreach(head, &section->entries)
         {
@@ -374,14 +365,11 @@ void in_lua_exec_conf(lua_State *L, struct mk_rconf *conf, char *key)
             }
         }
 
-        if (NULL != g_exec_info){
-            file->next = g_exec_info->next;
-        }
-        g_exec_info = file;
+        mk_list_add(&file->_head, ctx->exec_config);
     }
 }
 
-void in_lua_stat_conf(lua_State *L, struct mk_rconf *conf, char *key)
+void in_lua_stat_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char *key)
 {
 
     struct flb_in_lua_stat_info *file;
@@ -395,7 +383,6 @@ void in_lua_stat_conf(lua_State *L, struct mk_rconf *conf, char *key)
         file = (struct flb_in_lua_stat_info *)malloc(sizeof(struct flb_in_lua_stat_info));
         file->stat_config.refresh_interval = gst_global_config.refresh_interval;
         file->stat_config.format = NULL;
-        file->next = NULL;
 
         mk_list_foreach(head, &section->entries)
         {
@@ -409,22 +396,23 @@ void in_lua_stat_conf(lua_State *L, struct mk_rconf *conf, char *key)
                 file->stat_config.refresh_interval = atoi(entry->val);
             }
             else {
-                printf("config [%s] not support %s.\r\n", key, entry->key);
+                flb_info("config [%s] not support %s.\r\n", key, entry->key);
             }
         }
-
-        if (NULL != g_stat_info) {
-            file->next = g_stat_info;
-        }
-        g_stat_info = file;
+        mk_list_add(&file->_head, ctx->stat_config);
     }
 }
 
-void in_lua_global_config(lua_State *L, struct mk_rconf *conf)
+void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 {
     struct mk_rconf_section *section;
     struct mk_rconf_entry *entry;
     struct mk_list *head;
+    struct mk_list *lua_path_head;
+    struct mk_string_line *lua_path_entry;
+    lua_State *L = ctx->lua_state;
+    int status = 0;
+    int resault = 0;
 
     gst_global_config.hostname = NULL;
     gst_global_config.refresh_interval = 5;
@@ -432,6 +420,12 @@ void in_lua_global_config(lua_State *L, struct mk_rconf *conf)
     section = mk_rconf_section_get(conf, "LS");
     if (section)
     {
+        flb_info("before luaopen_package");
+        lua_pushcfunction(L, luaopen_package);
+        flb_info("after luaopen_package");
+        lua_pushstring(L, "");
+        lua_call(L, 1, 0);
+
         mk_list_foreach(head, &section->entries)
         {
             entry = mk_list_entry(head, struct mk_rconf_entry, _head);
@@ -443,6 +437,40 @@ void in_lua_global_config(lua_State *L, struct mk_rconf *conf)
             else if(0 == strcasecmp(entry->key, "refresh_interval")) {
                 gst_global_config.refresh_interval = atoi(entry->val);
             }
+            else if (0 == strcasecmp(entry->key, "lua_debug") && 0 == strcasecmp(entry->val, "on")){
+                // luaopen_debug
+                lua_pushcfunction(L, luaopen_debug);
+                lua_pushstring(L, "");
+                lua_call(L, 1, 0);
+            }
+            else if (0 == strcasecmp(entry->key, "lua_path")) {
+                ctx->lua_paths = mk_string_split_line(entry->val);
+                mk_list_foreach(lua_path_head, ctx->lua_paths) {
+                    lua_path_entry = mk_list_entry(head, struct mk_string_line, _head);
+                    flb_info("extend_lua_path lua_path = %s", lua_path_entry->val);
+                    set_lua_path(L, lua_path_entry->val, (size_t) lua_path_entry->len);
+                }
+            }
+            else if (0 == strcasecmp(entry->key, "lua_engine")){
+                flb_info("lua_execute lua_engine = %s", ctx->lua_engine);
+                status = luaL_loadfile(L, ctx->lua_engine);
+                if (status) {
+                    /* If something went wrong, error message is at the top of */
+                    /* the stack */
+                    fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
+                    exit(1);
+                }
+                /* TODO: Give the global object here */
+                /* Ask Lua to run our little script */
+                resault = lua_pcall(L, 0, LUA_MULTRET, 0);
+                if (resault) {
+                    fprintf(stderr, "Failed to start script: %s\n", lua_tostring(L, -1));
+                    exit(1);
+                }
+
+                /* TODO: call LUA function from C */
+                //in_lua_require(L, ctx->lua_engine, "_ls_engine");
+            }
             else {
                 printf("config [LS] not support %s.\r\n", entry->key);
             }
@@ -452,20 +480,22 @@ void in_lua_global_config(lua_State *L, struct mk_rconf *conf)
 
 }
 
-/*
-void in_lua_config(lua_State *L, struct mk_rconf *conf)
+
+void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 {
     if (NULL == conf)
     {
         return;
     }
 
+    flb_info("do in_lua_config");
+
     int loop_num = 0;
     struct mk_rconf_section *section;
     struct mk_rconf_entry *entry;
     struct mk_list *head;
 
-    in_lua_global_config(L, conf);
+    in_lua_ls_config(ctx, conf);
 
     for (loop_num = 0; loop_num < config_max; loop_num ++)
     {
@@ -486,7 +516,7 @@ void in_lua_config(lua_State *L, struct mk_rconf *conf)
                                gst_config_call[loop_num].layer_prefix,
                                strlen(gst_config_call[loop_num].prefix));
 
-                        gst_config_call[loop_num].pfunc(L, conf, entry->key);
+                        gst_config_call[loop_num].pfunc(ctx, conf, entry->key);
                     }
                     else {
                         printf("config prefix of %s in [%s] is wrong. should be \"file_\"\r\n",
@@ -498,7 +528,7 @@ void in_lua_config(lua_State *L, struct mk_rconf *conf)
         }
     }
 }
-*/
+
 
 void in_lua_get_data(lua_State *L)
 {
@@ -512,7 +542,7 @@ void in_lua_get_data(lua_State *L)
 
 }
 
-int in_lua_get_pipe(struct mk_rconf *file)
+int in_lua_get_pipe(struct flb_in_lua_config *ctx, struct mk_rconf *file)
 {
     printf("call in_lua_get_pipe\r\n");
     pid_t i_child_pid = -1;
@@ -534,13 +564,44 @@ int in_lua_get_pipe(struct mk_rconf *file)
 
         gai_pipe_fd_control[1] = -1;
         gai_pipe_fd_data[0] = -1;
+        ctx->lua_paths = NULL;
+        ctx->lua_state = NULL;
+        {
+            /* 初始化 LUA 环境 */
+            lua_State *L = luaL_newstate();
+            //luaL_openlibs(L);
+            ctx->lua_state = L;
+            flb_info("%s", L);
+            // using as sanbox
+            //luaopen_base(L);
+            flb_info("b luaopen_base");
+            lua_pushcfunction(L, luaopen_base);
+            flb_info("a luaopen_base");
+            lua_pushstring(L, "");
+            lua_call(L, 1, 0);
 
+            //luaopen_table(L);
+            flb_info("b luaopen_table");
+            lua_pushcfunction(L, luaopen_table);
+            lua_pushstring(L, "");
+            lua_call(L, 1, 0);
 
-        lua_State *L = luaL_newstate();
-        luaL_openlibs(L);
-        luaL_loadfile(L, "../lua/init.lua");
-        //in_lua_config(L, file);
-        in_lua_get_data(L);
+            //luaopen_string(L);
+            lua_pushcfunction(L, luaopen_string);
+            lua_pushstring(L, "");
+            lua_call(L, 1, 0);
+
+            //luaopen_math(L);
+            lua_pushcfunction(L, luaopen_math);
+            lua_pushstring(L, "");
+            lua_call(L, 1, 0);
+
+            //luaopen_io(L);
+            //luaopen_os(L);
+            // load _debug & _package in in_lua_config
+        }
+
+        in_lua_get_data(ctx->lua_state);
         exit(0);
     }
     else
@@ -585,6 +646,8 @@ int in_lua_init(struct flb_config *config)
     int ret;
     struct flb_in_lua_config *ctx;
 
+    flb_info("call in_lua_init");
+
 
     /* Allocate space for the configuration */
     ctx = malloc(sizeof(struct flb_in_lua_config));
@@ -592,39 +655,9 @@ int in_lua_init(struct flb_config *config)
         return -1;
     }
 
-    ctx->lua_paths = NULL;
-    ctx->lua_state = NULL;
-    {
-        /* 初始化 LUA 环境 */
-        lua_State *L = lua_open();
-        ctx->lua_state = L;
-        // using as sanbox
-        //luaopen_base(L);
-        lua_pushcfunction(L, luaopen_base);
-        lua_pushstring(L, "");
-        lua_call(L, 1, 0);
 
-        //luaopen_table(L);
-        lua_pushcfunction(L, luaopen_table);
-        lua_pushstring(L, "");
-        lua_call(L, 1, 0);
-
-        //luaopen_string(L);
-        lua_pushcfunction(L, luaopen_string);
-        lua_pushstring(L, "");
-        lua_call(L, 1, 0);
-
-        //luaopen_math(L);
-        lua_pushcfunction(L, luaopen_math);
-        lua_pushstring(L, "");
-        lua_call(L, 1, 0);
-
-        //luaopen_io(L);
-        //luaopen_os(L);
-        // load _debug & _package in in_lua_config
-    }
     /* read the configure */
-    in_lua_config(ctx, config->file);
+    flb_info("in_lua_config before");
 
     /* initialize MessagePack buffers */
     msgpack_sbuffer_init(&ctx->mp_sbuf);
@@ -633,7 +666,7 @@ int in_lua_init(struct flb_config *config)
 
     /* Clone the standard input file descriptor */
     //fd = dup(STDOUT_FILENO);
-    fd = in_lua_get_pipe(config->file);
+    fd = in_lua_get_pipe(ctx, config->file);
     if (fd == -1) {
         perror("dup");
         flb_utils_error_c("Could not open standard input!");
@@ -715,13 +748,13 @@ void *in_lua_flush(void *in_context, int *size)
     struct flb_in_lua_config *ctx = in_context;
 
     if (ctx->buffer_id == 0)
-        goto fail;
+        return NULL;
 
     sbuf = &ctx->mp_sbuf;
     *size = sbuf->size;
     buf = malloc(sbuf->size);
     if (!buf)
-        goto fail;
+        return NULL;
 
     /* set a new buffer and re-initialize our MessagePack context */
     memcpy(buf, sbuf->data, sbuf->size);
@@ -733,8 +766,6 @@ void *in_lua_flush(void *in_context, int *size)
 
     return buf;
 
-fail:
-    return NULL;
 }
 
 /* Plugin reference */
