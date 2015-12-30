@@ -20,27 +20,32 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <string.h>
 #include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include <unistd.h>
+#include <dirent.h>
+//#include <sys/epoll.h>
+
 
 #include <msgpack.h>
 #include <fluent-bit/flb_input.h>
 #include <fluent-bit/flb_config.h>
 #include <fluent-bit/flb_pack.h>
-/* LUA Include */
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
 
 #include "in_lua.h"
+
+#define CONFIG_REREAD_INTERVAL        60
+
+#define CONFIG_TABLE_NAME     "FLB_CONFIG_TABLE"
+
 static int gai_pipe_fd_data[2] = {};
 static int gai_pipe_fd_control[2] = {};
 
 
-void in_lua_file_conf(struct mk_rconf *conf, char *key);
-void in_lua_exec_conf(struct mk_rconf *conf, char *key);
-void in_lua_stat_conf(struct mk_rconf *conf, char *key);
+void in_lua_file_conf(lua_State *, struct mk_rconf *conf, char *key);
+void in_lua_exec_conf(lua_State *, struct mk_rconf *conf, char *key);
+void in_lua_stat_conf(lua_State *, struct mk_rconf *conf, char *key);
+
 
 static struct flb_in_lua_callback gst_config_call[config_max] = {
     [config_file] = {"FILE", "file_", "File:", in_lua_file_conf},
@@ -49,6 +54,11 @@ static struct flb_in_lua_callback gst_config_call[config_max] = {
 };
 
 static struct flb_in_lua_global gst_global_config;
+static struct flb_in_lua_file_info *g_file_info = NULL;
+static struct flb_in_lua_exec_info *g_exec_info = NULL;
+static struct flb_in_lua_stat_info *g_stat_info = NULL;
+
+static uint32_t time_click_num = 0;
 
 int pipe_write_data(lua_State *L)
 {
@@ -89,18 +99,318 @@ int pipe_read_data(char *pc_buf, const unsigned int ui_buf_len)
     return i_read_len;
 }
 
-void in_lua_get_data()
+//int in_lua_config_record(lua_State *L, )
+
+void in_lua_get_file(lua_State *L, struct flb_in_lua_file_info *file)
 {
-    lua_State *L = luaL_newstate();
-    luaL_openlibs(L);
+    if (file->file_config.log_directory == NULL){
+        return;
+    }
+
+    if (file->file_config.file_match == NULL){
+        return;
+    }
+
+    DIR *dir = NULL;
+    struct dirent *ptr;
+    char lua_command[4096] = {};
+    int data_len = 0;
+
+    const char *first = NULL;
+    const char *second = NULL;
+
+    dir = opendir(file->file_config.journal_directory);
+    if (NULL == dir){
+        printf("%s open error for %s.\r\n", file->file_config.journal_directory, strerror(errno));
+        return;
+    }
+    closedir(dir);
+
+    dir = opendir(file->file_config.log_directory);
+    if (NULL == dir) {
+        printf("%s open error for %s.\r\n", file->file_config.log_directory, strerror(errno));
+        return;
+    }
+
+    luaL_loadfile(L, "test.lua");
+
+    while (NULL != (ptr = readdir(dir))) {
+        if (ptr->d_name[0] == '.') {
+            continue;
+        }
+        if (ptr->d_type == 8){
+            data_len = snprintf(lua_command, 4096, "('%s'):match('%s')", ptr->d_name, file->file_config.file_match);
+            lua_command[data_len] = '\0';
+            luaL_dostring(L, lua_command);
+            if (first){
+                second = lua_tostring(L, 1);
+                if (second && file->file_config.priority) {
+                    lua_pushstring(L, first);
+                    lua_pushstring(L, second);
+                    lua_getglobal(L, file->file_config.priority);
+                    lua_pcall(L, 2, 1, 0);
+                    first = lua_tostring(L, 1);
+                }
+            }
+            else {
+                first = lua_tostring(L, 1);
+            }
+        }
+    }
+
+    if (first) {
+        if (0 != strcmp(file->file_name, first)) {
+            data_len = snprintf(file->file_name, sizeof(file->file_name), first);
+            file->file_name[data_len] = '\0';
+            file->new_file = true;
+        }
+    }
+    else {
+        printf("can not find file to read in directory %s.\r\n", file->file_config.log_directory);
+    }
+
+    closedir(dir);
+
+    return;
+}
+
+void in_lua_file_conf(lua_State *L, struct mk_rconf *conf, char *key)
+{
+
+    struct flb_in_lua_file_info *file;
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+    section = mk_rconf_section_get(conf, key);
+    if (section)
+    {
+
+        file = (struct flb_in_lua_file_info *)malloc(sizeof(struct flb_in_lua_file_info));
+        file->file_config.file_match = NULL;
+        file->file_config.journal_directory = "/var/log/lsight";
+        file->file_config.log_directory = NULL;
+        file->file_config.priority = NULL;
+        file->file_config.rescan_interval = gst_global_config.refresh_interval;
+        file->bool = false;
+        file->file_name[0] = '\0';
+        file->file_fd = -1;
+        file->next = NULL;
+
+        mk_list_foreach(head, &section->entries)
+        {
+            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+            printf("section key = %s, val = %s\n", entry->key, entry->val);
+
+            if(0 == strcasecmp(entry->key, "journal_directory")) {
+                file->file_config.journal_directory = realpath(entry->val, NULL);
+            }
+            else if(0 == strcasecmp(entry->key, "log_directory")) {
+                file->file_config.log_directory = realpath(entry->val, NULL);
+            }
+            else if(0 == strcasecmp(entry->key, "file_match")) {
+                file->file_config.file_match = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "rescan_interval")) {
+                file->file_config.rescan_interval = atoi(entry->val);
+            }
+            else if(0 == strcasecmp(entry->key, "priority")) {
+                file->file_config.priority = entry->val;
+            }
+            else {
+                printf("config [%s] not support %s.\r\n", key, entry->key);
+            }
+        }
+
+        in_lua_get_file(L, file);
+        if (NULL != g_file_info){
+            file->next = g_file_info->next;
+        }
+        g_file_info = file;
+    }
+
+    return;
+}
+
+void in_lua_exec_conf(lua_State *L, struct mk_rconf *conf, char *key)
+{
+
+    struct flb_in_lua_exec_info *file;
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+
+    section = mk_rconf_section_get(conf, key);
+    if (section)
+    {
+
+        file = (struct flb_in_lua_exec_info *)malloc(sizeof(struct flb_in_lua_exec_info));
+
+        file->exec_config.refresh_interval = gst_global_config.refresh_interval;
+        file->exec_config.call = NULL;
+        file->exec_config.shell = NULL;
+        file->exec_config.watch = NULL;
+        file->next = NULL;
+
+        mk_list_foreach(head, &section->entries)
+        {
+            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+            printf("section key = %s, val = %s\n", entry->key, entry->val);
+            if(0 == strcasecmp(entry->key, "watch")) {
+                file->exec_config.watch = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "shell")) {
+                file->exec_config.shell = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "call")) {
+                file->exec_config.call = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
+                file->exec_config.refresh_interval = atoi(entry->val);
+            }
+            else {
+                printf("config [%s] not support %s.\r\n", key, entry->key);
+            }
+        }
+
+        if (NULL != g_exec_info){
+            file->next = g_exec_info->next;
+        }
+        g_exec_info = file;
+    }
+}
+
+void in_lua_stat_conf(lua_State *L, struct mk_rconf *conf, char *key)
+{
+
+    struct flb_in_lua_stat_info *file;
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+    section = mk_rconf_section_get(conf, key);
+    if (section)
+    {
+        file = (struct flb_in_lua_stat_info *)malloc(sizeof(struct flb_in_lua_stat_info));
+        file->stat_config.refresh_interval = gst_global_config.refresh_interval;
+        file->stat_config.format = NULL;
+        file->next = NULL;
+
+        mk_list_foreach(head, &section->entries)
+        {
+            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+            printf("section key = %s, val = %s\n", entry->key, entry->val);
+
+            if(0 == strcasecmp(entry->key, "format")) {
+                file->stat_config.format = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
+                file->stat_config.refresh_interval = atoi(entry->val);
+            }
+            else {
+                printf("config [%s] not support %s.\r\n", key, entry->key);
+            }
+        }
+
+        if (NULL != g_stat_info) {
+            file->next = g_stat_info;
+        }
+        g_stat_info = file;
+    }
+}
+
+void in_lua_global_config(lua_State *L, struct mk_rconf *conf)
+{
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+    gst_global_config.hostname = NULL;
+    gst_global_config.refresh_interval = 5;
+
+    section = mk_rconf_section_get(conf, "LS");
+    if (section)
+    {
+        mk_list_foreach(head, &section->entries)
+        {
+            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+            printf("section key = %s, val = %s\n", entry->key, entry->val);
+
+            if(0 == strcasecmp(entry->key, "hostname")) {
+                gst_global_config.hostname = entry->val;
+            }
+            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
+                gst_global_config.refresh_interval = atoi(entry->val);
+            }
+            else {
+                printf("config [LS] not support %s.\r\n", entry->key);
+            }
+        }
+    }
+
+
+}
+
+void in_lua_config(lua_State *L, struct mk_rconf *conf)
+{
+    if (NULL == conf)
+    {
+        return;
+    }
+
+    int loop_num = 0;
+    struct mk_rconf_section *section;
+    struct mk_rconf_entry *entry;
+    struct mk_list *head;
+
+    in_lua_global_config(L, conf);
+
+    for (loop_num = 0; loop_num < config_max; loop_num ++)
+    {
+        section = mk_rconf_section_get(conf, gst_config_call[loop_num].key);
+        if (section)
+        {
+            mk_list_foreach(head, &section->entries)
+            {
+                entry = mk_list_entry(head, struct mk_rconf_entry, _head);
+                printf("FILE key = %s, val = %s\n", entry->key, entry->val);
+
+                if (0 == strcasecmp(entry->val, MK_RCONF_ON))
+                {
+                    if (0 == strncasecmp(entry->key,
+                                         gst_config_call[loop_num].prefix,
+                                         strlen(gst_config_call[loop_num].prefix))) {
+                        memcpy(entry->key,
+                               gst_config_call[loop_num].layer_prefix,
+                               strlen(gst_config_call[loop_num].prefix));
+
+                        gst_config_call[loop_num].pfunc(L, conf, entry->key);
+                    }
+                    else {
+                        printf("config prefix of %s in [%s] is wrong. should be \"file_\"\r\n",
+                               entry->key,
+                               gst_config_call[loop_num].key);
+                    }
+                }
+            }
+        }
+    }
+}
+
+void in_lua_get_data(lua_State *L)
+{
     lua_register(L, "write", pipe_write_data);
     lua_register(L, "read", pipe_read_control);
     sleep(1);
-    luaL_dofile(L, "/home/ma/work/fluent-bit/test/test.lua");
+    luaL_loadfile(L, "/home/ma/work/fluent-bit/test/test.lua");
+
+    //创建epoll
+    //int epoll_fd = epoll_create()
+
 }
 
-
-int in_lua_get_pipe()
+int in_lua_get_pipe(struct mk_rconf *file)
 {
     printf("call in_lua_get_pipe\r\n");
     pid_t i_child_pid = -1;
@@ -122,8 +432,13 @@ int in_lua_get_pipe()
 
         gai_pipe_fd_control[1] = -1;
         gai_pipe_fd_data[0] = -1;
-        
-        in_lua_get_data();
+
+
+        lua_State *L = luaL_newstate();
+        luaL_openlibs(L);
+        luaL_loadfile(L, "../lua/init.lua");
+        in_lua_config(L, file);
+        in_lua_get_data(L);
         exit(0);
     }
     else
@@ -135,182 +450,6 @@ int in_lua_get_pipe()
         return gai_pipe_fd_data[0];
     }
     return 0;
-}
-
-void in_lua_file_conf(struct mk_rconf *conf, char *key)
-{
-
-    struct flb_in_lua_file file;
-    struct mk_rconf_section *section;
-    struct mk_rconf_entry *entry;
-    struct mk_list *head;
-
-    section = mk_rconf_section_get(conf, key);
-    if (section)
-    {
-        mk_list_foreach(head, &section->entries)
-        {
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("section key = %s, val = %s\n", entry->key, entry->val);
-
-            if(0 == strcasecmp(entry->key, "journal_directory")) {
-                file.journal_directory = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "log_directory")) {
-                file.log_directory = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "file_match")) {
-                file.file_match = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "rescan_interval")) {
-                file.rescan_interval = atoi(entry->val);
-            }
-            else if(0 == strcasecmp(entry->key, "priority")) {
-                file.priority = entry->val;
-            }
-            else {
-                printf("config [%s] not support %s.\r\n", key, entry->key);
-            }
-        }
-    }
-}
-
-void in_lua_exec_conf(struct mk_rconf *conf, char *key)
-{
-
-    struct flb_in_lua_exec file;
-    struct mk_rconf_section *section;
-    struct mk_rconf_entry *entry;
-    struct mk_list *head;
-
-    section = mk_rconf_section_get(conf, key);
-    if (section)
-    {
-        mk_list_foreach(head, &section->entries)
-        {
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("section key = %s, val = %s\n", entry->key, entry->val);
-            if(0 == strcasecmp(entry->key, "watch")) {
-                file.watch = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "shell")) {
-                file.shell = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "call")) {
-                file.call = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
-                file.refresh_interval = atoi(entry->val);
-            }
-            else {
-                printf("config [%s] not support %s.\r\n", key, entry->key);
-            }
-        }
-    }
-}
-
-void in_lua_stat_conf(struct mk_rconf *conf, char *key)
-{
-
-    struct flb_in_lua_stat file;
-    struct mk_rconf_section *section;
-    struct mk_rconf_entry *entry;
-    struct mk_list *head;
-
-    section = mk_rconf_section_get(conf, key);
-    if (section)
-    {
-        mk_list_foreach(head, &section->entries)
-        {
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("section key = %s, val = %s\n", entry->key, entry->val);
-
-            if(0 == strcasecmp(entry->key, "format")) {
-                file.format = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
-                file.refresh_interval = atoi(entry->val);
-            }
-            else {
-                printf("config [%s] not support %s.\r\n", key, entry->key);
-            }
-        }
-    }
-}
-
-void in_lua_global_config(struct mk_rconf *conf)
-{
-    struct mk_rconf_section *section;
-    struct mk_rconf_entry *entry;
-    struct mk_list *head;
-
-    memset(&gst_global_config, 0, sizeof(gst_global_config);
-
-    section = mk_rconf_section_get(conf, "LS");
-    if (section)
-    {
-        mk_list_foreach(head, &section->entries)
-        {
-            entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            printf("section key = %s, val = %s\n", entry->key, entry->val);
-
-            if(0 == strcasecmp(entry->key, "hostname")) {
-                gst_global_config.hostname = entry->val;
-            }
-            else if(0 == strcasecmp(entry->key, "refresh_interval")) {
-                gst_global_config.refresh_interval = atoi(entry->val);
-            }
-            else {
-                printf("config [LS] not support %s.\r\n", entry->key);
-            }
-        }
-    }
-}
-
-void in_lua_config(struct mk_rconf *conf)
-{
-    if (NULL == conf)
-    {
-        return;
-    }
-
-    int loop_num = 0;
-    struct mk_rconf_section *section;
-    struct mk_rconf_entry *entry;
-    struct mk_list *head;
-
-    in_lua_global_config(conf);
-
-    for (loop_num = 0; loop_num < config_max; loop_num ++)
-    {
-        section = mk_rconf_section_get(conf, gst_config_call[loop_num].key);
-        if (section)
-        {
-            mk_list_foreach(head, &section->entries)
-            {
-                entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-                printf("FILE key = %s, val = %s\n", entry->key, entry->val);
-
-                if (0 == strcasecmp(entry->val, MK_RCONF_ON))
-                {
-                    if (0 == strncasecmp(entry->key,
-                                         gst_config_call[loop_num].prefix,
-                                         strlen(gst_config_call[loop_num].prefix))) {
-                        memcpy(entry->key,
-                               gst_config_call[loop_num].layer_prefix,
-                               strlen(gst_config_call[loop_num].prefix));
-
-                        gst_config_call[loop_num].pfunc(conf, entry->key);
-                    }
-                    else {
-                        printf("config prefix of %s in [%s] is wrong. should be \"file_\"\r\n",
-                               entry->key,
-                               gst_config_call[loop_num].key);
-                    }
-                }
-            }
-        }
-    }
 }
 
 /* Initialize plugin */
@@ -326,8 +465,6 @@ int in_lua_init(struct flb_config *config)
     if (!ctx) {
         return -1;
     }
-    /* read the configure */
-    in_lua_config(config->file);
 
     /* initialize MessagePack buffers */
     msgpack_sbuffer_init(&ctx->mp_sbuf);
@@ -336,7 +473,7 @@ int in_lua_init(struct flb_config *config)
 
     /* Clone the standard input file descriptor */
     //fd = dup(STDOUT_FILENO);
-    fd = in_lua_get_pipe();
+    fd = in_lua_get_pipe(config->file);
     if (fd == -1) {
         perror("dup");
         flb_utils_error_c("Could not open standard input!");

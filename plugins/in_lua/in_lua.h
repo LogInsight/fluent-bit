@@ -20,6 +20,12 @@
 #ifndef FLB_IN_LUA_H
 #define FLB_IN_LUA_H
 
+
+/* LUA Include */
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+
 #include <fluent-bit/flb_config.h>
 #include <fluent-bit/flb_input.h>
 #include <fluent-bit/flb_utils.h>
@@ -29,7 +35,7 @@ struct flb_in_lua_config {
     //TODO: fork & pipe ?
     int fd;                           /* stdin file descriptor */
     int buf_len;                      /* read buffer length    */
-    char buf[8192 * 2];               /* read buffer: 16Kb max */
+    char buf[1 << 20];               /* read buffer: 1MB max */
 
     int buffer_id;
     struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer        */
@@ -61,6 +67,24 @@ struct flb_in_lua_global{
     char *hostname;
 };
 
+struct flb_in_lua_file_info {
+    struct flb_in_lua_file_info *next;
+    struct flb_in_lua_file file_config;
+    char file_name[1024];
+    int file_fd;
+    bool new_file;
+};
+
+struct flb_in_lua_exec_info {
+    struct flb_in_lua_exec_info *next;
+    struct flb_in_lua_exec exec_config;
+};
+
+struct flb_in_lua_stat_info {
+    struct flb_in_lua_stat_info *next;
+    struct flb_in_lua_stat stat_config;
+};
+
 enum config_key{
     config_file = 0,
     config_exec,
@@ -68,7 +92,7 @@ enum config_key{
     config_max
 };
 
-typedef void (*in_lua_config_layer_two)(struct mk_rconf *, char *);
+typedef void (*in_lua_config_layer_two)(lua_State *, struct mk_rconf *, char *);
 
 struct flb_in_lua_callback{
     char *key;
