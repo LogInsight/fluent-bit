@@ -81,6 +81,12 @@ Embed LUA in C
 ！！！ 此配置文件的格式要求比较严格，需要严格缩进    
   
 
+[LS]
+  存在一系列 lua_ 的扩展
+  lua_debug = [ON | OFF] 使用允许使用LUA 的 debug 扩展
+  lua_package = [ON | OFF] 是否允许使用 LUA 的 package 扩展
+    
+
 系统启动的流程
 
 1 [C] 从配置文件中读取要监控那些日志输入
