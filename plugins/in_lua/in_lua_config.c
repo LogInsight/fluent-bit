@@ -443,6 +443,9 @@ void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
             }
         }
     }
+
+    ctx->buf = (char *)malloc(gst_global_config.mem_size);
+    ctx->buf_len = gst_global_config.mem_size;
     flb_info("ls config done.");
     return;
 }

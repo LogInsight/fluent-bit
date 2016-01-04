@@ -39,6 +39,7 @@
 
 #include "in_lua.h"
 #include "in_lua_config.h"
+#include "in_lua_file.h"
 
 #define CONFIG_REREAD_INTERVAL        60
 
@@ -97,12 +98,10 @@ int pipe_read_data(char *pc_buf, const unsigned int ui_buf_len)
     return i_read_len;
 }
 
-void in_lua_get_data(lua_State *L)
+void in_lua_get_data(struct flb_in_lua_config *ctx)
 {
-    lua_register(L, "write", pipe_write_data);
-    lua_register(L, "read", pipe_read_control);
-    sleep(1);
-    luaL_loadfile(L, "/home/ma/work/fluent-bit/test/test.lua");
+    in_lua_file_init(ctx);
+    in_lua_file_done(ctx);
 
     //创建epoll
     //int epoll_fd = epoll_create()
@@ -170,7 +169,7 @@ int in_lua_get_pipe(struct flb_in_lua_config *ctx, struct mk_rconf *file)
         //luaopen_os(L);
         // load _debug & _package in in_lua_config
 
-        in_lua_get_data(ctx->lua_state);
+        in_lua_get_data(ctx);
         exit(0);
     }
     else
@@ -179,6 +178,7 @@ int in_lua_get_pipe(struct flb_in_lua_config *ctx, struct mk_rconf *file)
         close(gai_pipe_fd_control[0]);
         gai_pipe_fd_control[0] = -1;
         gai_pipe_fd_data[1] = -1;
+        lua_close(ctx->lua_state);
         return gai_pipe_fd_data[0];
     }
     return 0;
@@ -201,7 +201,6 @@ int in_lua_exit(void *in_context, struct flb_config *config)
         mk_string_split_free(ctx->lua_paths);
 
     /* clear msgpackbuf */
-    msgpack_sbuffer_destroy(&ctx->mp_sbuf);
     // msgpack_packer_free // 因为 init 实际是 in-place 初始化， 此处不 free
     // msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
     return 0;
@@ -226,10 +225,6 @@ int in_lua_init(struct flb_config *config)
 
     /* read the configure */
     flb_info("in_lua_config before");
-
-    /* initialize MessagePack buffers */
-    msgpack_sbuffer_init(&ctx->mp_sbuf);
-    msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
     ctx->buffer_id = 0;
 
     /* Clone the standard input file descriptor */
@@ -277,41 +272,14 @@ int in_lua_collect(struct flb_config *config, void *in_context)
     struct flb_in_lua_config *ctx = in_context;
 
     bytes = read(ctx->fd,
-                 ctx->buf + ctx->buf_len,
-                 sizeof(ctx->buf) - ctx->buf_len);
+                 ctx->buf + ctx->read_len,
+                 ctx->buf_len - ctx->read_len);
     flb_debug("in_lua read() = %i", bytes);
     if (bytes <= 0) {
         return -1;
     }
-    ctx->buf_len += bytes;
+    ctx->read_len += bytes;
 
-    /* Initially we should support JSON input */
-    ret = flb_pack_json(ctx->buf, ctx->buf_len, &pack, &out_size);
-    if (ret != 0) {
-        flb_debug("lua data incomplete, waiting for more data...");
-        return 0;
-    }
-    ctx->buf_len = 0;
-
-    /* Queue the data with time field */
-    msgpack_unpacked_init(&result);
-
-    while (msgpack_unpack_next(&result, pack, out_size, &off)) {
-        if (result.data.type == MSGPACK_OBJECT_MAP) {
-            /* { map => val, map => val, map => val } */
-            msgpack_pack_array(&ctx->mp_pck, 2);
-            msgpack_pack_uint64(&ctx->mp_pck, time(NULL));
-            msgpack_pack_bin_body(&ctx->mp_pck, pack + start, off - start);
-        } else {
-            msgpack_pack_bin_body(&ctx->mp_pck, pack + start, off - start);
-        }
-        ctx->buffer_id++;
-
-        start = off;
-    }
-    msgpack_unpacked_destroy(&result);
-
-    free(pack);
     return 0;
 }
 
@@ -321,22 +289,9 @@ void *in_lua_flush(void *in_context, int *size)
     msgpack_sbuffer *sbuf;
     struct flb_in_lua_config *ctx = in_context;
 
-    if (ctx->buffer_id == 0)
-        return NULL;
-
-    sbuf = &ctx->mp_sbuf;
-    *size = sbuf->size;
-    buf = malloc(sbuf->size);
+    buf = malloc(ctx->read_len);
     if (!buf)
         return NULL;
-
-    /* set a new buffer and re-initialize our MessagePack context */
-    memcpy(buf, sbuf->data, sbuf->size);
-    msgpack_sbuffer_destroy(&ctx->mp_sbuf);
-    msgpack_sbuffer_init(&ctx->mp_sbuf);
-    msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
-
-    ctx->buffer_id = 0;
 
     return buf;
 

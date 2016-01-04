@@ -191,4 +191,6 @@ int data_encode(unsigned char ucType,
 }
 
 
+void in_lua_file_done(struct flb_in_lua_config *ctx);
+void in_lua_file_init(struct flb_in_lua_config *ctx);
 #endif //FLUENT_BIT_IN_LUA_FILE_H

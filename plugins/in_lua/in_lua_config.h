@@ -49,6 +49,7 @@ struct flb_in_lua_file_info {
     bool changed;
     bool new_file;
     int wfd;
+    uint64_t offset;
 };
 
 struct flb_in_lua_exec_info {

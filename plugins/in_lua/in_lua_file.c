@@ -313,7 +313,6 @@ int file_open_behave(int fd, int offset, int stream_id, int sub_stream_id, const
 
     iRecv = data_encode(COMMAND_STREAM_START, &stReq, sizeof(stReq), (void *)file_name, ntohs(stReq.filename_len), szBuf, 4096);
 
-    in_lua_data_write(szBuf, iRecv);
     return 0;
 }
 
@@ -368,6 +367,8 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
 
     file_name[0] = '\0';
 
+    ctx->read_len = 0;
+
     mk_list_foreach(head, &ctx->file_config) {
         file = mk_list_entry(head, struct flb_in_lua_config, _head);
         in_lua_add_watch(ctx, file);
@@ -377,8 +378,9 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
             len = snprintf(file_name, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
             file_name[len] = '\0';
             //获取对应的meta信息
+            file->offset = 0;
             //打开文件
-            file_fd = in_lua_file_open(file_name, 0);
+            file_fd = in_lua_file_open(file_name, file->offset);
             file->file_fd = file_fd;
             file->changed = true;
         }
@@ -444,8 +446,11 @@ void in_lua_file_read(struct flb_in_lua_config *ctx, u_int64_t times) {
     struct mk_list *head
     struct flb_in_lua_file_info *file;
     static current_fd = -1;
+    uint32_t real_data_len = 0;
+    char *pc_current = NULL;
     lua_State *L = ctx->lua_state;
-
+    const char *res = NULL;
+    static char type = DATA_PACK;
     int read_len;
 
     mk_list_foreach(head, &ctx->file_config) {
@@ -458,11 +463,59 @@ void in_lua_file_read(struct flb_in_lua_config *ctx, u_int64_t times) {
                 if (current_fd != file->file_fd){
                     file_stream_behave(file->file_fd);
                 }
+                pc_current = ctx->buf + read_len - 1;
+                for ( ; pc_current >= ctx->buf; --pc_current)
+                {
+                    if (*pc_current == '\n')
+                    {
+                        real_data_len = pc_current - ctx->buf + 1;
+                        break;
+                    }
+                }
+                //暂时不考虑单条日志超1Ｍ的情况，后续追加。
+                if (real_data_len < read_len  && real_data_len > 0) {
+                    lseek(i_fd,  real_data_len - read_len, SEEK_CUR);
+                }
 
+                if (real_data_len == 0) {
+                     file->offset += read_len;
+                }
+                else {
+                    file->offset += real_data_len;
+                }
+
+                lua_getglobal(L, "process");
+                lua_pushlstring(L, ctx->buf, real_data_len);
+
+                res = lua_tostring(L, -1);
+
+                read_len = strlen(res);
+                real_data_len = htonl(read_len);
+                in_lua_data_write(&real_data_len, 4);
+                in_lua_data_write(&type, 1);
+                in_lua_data_write(res, read_len);
             }
             else {
                 file->changed = false;
             }
         }
+    }
+    return;
+}
+
+
+void in_lua_file_done(struct flb_in_lua_config *ctx) {
+    int fd = -1;
+    static uint64_t all_time = 0;
+    static uint64_t one_time = 0;
+
+
+    fd = in_lua_timer_create();
+
+    for ( ; ; ) {
+        in_lua_read_event(ctx);
+        in_lua_file_read(ctx, all_time);
+        read(fd, &one_time, sizeof(one_time));
+        all_time += one_time;
     }
 }
