@@ -36,6 +36,9 @@ struct flb_in_lua_global{
     char *hostname;
     char *access_key;
     char *host_key;
+    int io_limit;
+    int cpu_limit;
+    int mem_size;
 };
 
 struct flb_in_lua_file_info {
@@ -43,7 +46,9 @@ struct flb_in_lua_file_info {
     struct flb_in_lua_file file_config;
     char file_name[1024];
     int file_fd;
+    bool changed;
     bool new_file;
+    int wfd;
 };
 
 struct flb_in_lua_exec_info {

@@ -31,20 +31,22 @@ struct flb_in_lua_config {
     //TODO: fork & pipe ?
     int fd;                           /* stdin file descriptor */
     int buf_len;                      /* read buffer length    */
-    char buf[1 << 20];               /* read buffer: 1MB max */
+    char *buf;                        /* read buffer: 1MB */
+    int read_len;
 
     int buffer_id;
-    struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer             */
-    struct msgpack_packer mp_pck;    /* msgpack packer              */
+    //struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer             */
+    //struct msgpack_packer mp_pck;    /* msgpack packer              */
     void* lua_state;                 /* lua 的执行上下文              */
     char* lua_engine;
-    struct mk_list * lua_paths;  /* lua 加载用户脚本使用的路径     */
-    struct mk_list *file_config;
-    struct mk_list *exec_config;
-    struct mk_list *stat_config;
+    struct mk_list *lua_paths;  /* lua 加载用户脚本使用的路径     */
+    struct mk_list file_config;
+    struct mk_list exec_config;
+    struct mk_list stat_config;
 };
 
 
+int in_lua_data_write(void *buf, uint32_t len);
 int in_lua_init(struct flb_config *config);
 int in_lua_collect(struct flb_config *config, void *in_context);
 void *in_lua_flush(void *in_context, int *size);

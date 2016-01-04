@@ -50,13 +50,21 @@ static int gai_pipe_fd_control[2] = {};
 
 static uint64_t time_click_num = 0;
 
+
+int in_lua_data_write(void *buf, uint32_t len){
+    assert(buf != NULL);
+    assert(len > 0);
+    write(gai_pipe_fd_data[1], buf, len);
+}
+
 int pipe_write_data(lua_State *L)
 {
     const char *pc_data = NULL;
     pc_data = luaL_checkstring(L, 1);
-    write(gai_pipe_fd_data[1], pc_data, strlen(pc_data));
+    in_lua_data_write(pc_data, strlen(pc_data));
     return 0;
 }
+
 
 
 int pipe_read_control(lua_State *L)
@@ -89,19 +97,6 @@ int pipe_read_data(char *pc_buf, const unsigned int ui_buf_len)
     return i_read_len;
 }
 
-
-void in_lua_file_init(struct flb_in_lua_config *ctx)
-{
-    struct mk_list *head;
-    struct flb_in_lua_file_info *file;
-    mk_list_foreach(head, ctx->file_config){
-        file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
-
-    }
-}
-
-
-
 void in_lua_get_data(lua_State *L)
 {
     lua_register(L, "write", pipe_write_data);
@@ -123,6 +118,9 @@ int in_lua_get_pipe(struct flb_in_lua_config *ctx, struct mk_rconf *file)
         printf("fluentd pipe create failed.\r\n");
         exit(0);
     }
+
+    in_lua_config(ctx, file);
+
     i_child_pid = fork();
     if (i_child_pid < 0)
     {
@@ -172,7 +170,6 @@ int in_lua_get_pipe(struct flb_in_lua_config *ctx, struct mk_rconf *file)
         //luaopen_os(L);
         // load _debug & _package in in_lua_config
 
-        in_lua_config(ctx, file);
         in_lua_get_data(ctx->lua_state);
         exit(0);
     }
@@ -200,9 +197,8 @@ int in_lua_exit(void *in_context, struct flb_config *config)
         ctx->lua_state = NULL;
     }
     /* free config->index_files */
-    if (ctx->lua_paths) {
+    if (ctx->lua_paths)
         mk_string_split_free(ctx->lua_paths);
-    }
 
     /* clear msgpackbuf */
     msgpack_sbuffer_destroy(&ctx->mp_sbuf);
@@ -238,6 +234,12 @@ int in_lua_init(struct flb_config *config)
 
     /* Clone the standard input file descriptor */
     //fd = dup(STDOUT_FILENO);
+
+    mk_list_init(&ctx->file_config);
+    mk_list_init(&ctx->stat_config);
+    mk_list_init(&ctx->exec_config);
+    ctx->lua_paths = NULL;
+
     fd = in_lua_get_pipe(ctx, config->file);
     if (fd == -1) {
         perror("dup");
