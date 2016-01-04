@@ -2,6 +2,7 @@
 _book/
 .idea/
 build/
+bld/
 
 # generate files
 include/fluent-bit/flb_plugins.h

@@ -17,3 +17,5 @@ include_directories(
 )
 
 FLB_PLUGIN_3(in_lua "${src}" "jsmn")
+
+add_executable(test_lua_tool in_lua_tool.c main.c)

@@ -2,6 +2,9 @@
 // Created by user on 4/1/2016.
 //
 
+#include <dirent.h>
+#include <string.h>
+#include <sys/stat.h>
 #include "in_lua_tool.h"
 
 unsigned long Crc32_ComputeBuf(unsigned long inCrc32, const void *buf, size_t bufLen) {
@@ -55,4 +58,44 @@ unsigned long Crc32_ComputeBuf(unsigned long inCrc32, const void *buf, size_t bu
         crc32 = (crc32 >> 8) ^ crcTable[(crc32 ^ byteBuf[i]) & 0xFF];
     }
     return crc32 ^ 0xFFFFFFFF;
+}
+
+
+int Get_Last_File(char *dirname, uint32_t dir_size, char *filename, uint32_t file_size) {
+    DIR* dir = opendir(dirname);
+    struct dirent* child;
+
+    time_t t = 0;
+    while ((child = readdir(dir)) != NULL) {
+        if (child->d_name[0] == '.') {
+            continue;
+        }
+
+        char buf[1024];
+        memcpy(buf, dirname, dir_size);
+        memcpy(buf + dir_size, "/", 1);
+        memcpy(buf + dir_size + 1, child->d_name, child->d_namlen);
+        buf[dir_size + 1 + child->d_namlen] = 0;
+
+        struct stat st;
+        int r = stat(buf, &st);
+        if (r != 0) {
+            fprintf(stderr, "can't stat file, filename=[%s], ret=[%d]\n", buf, r);
+            continue;
+        }
+
+        if (!S_ISREG(st.st_mode)) {
+            fprintf(stderr, "file is not regular, filename=[%s]\n", child->d_name);
+            continue;
+        }
+
+        if (t < st.st_mtime) {
+            memcpy(filename, dirname, dir_size);
+            memcpy(filename + dir_size, "/", 1);
+            memcpy(filename + dir_size + 1, child->d_name, child->d_namlen);
+            t = st.st_mtime;
+        }
+        
+    }
+    return 0;
 }
