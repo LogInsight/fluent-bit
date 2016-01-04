@@ -201,7 +201,7 @@ int in_lua_exit(void *in_context, struct flb_config *config)
         mk_string_split_free(ctx->lua_paths);
 
     /* clear msgpackbuf */
-    msgpack_sbuffer_destroy(&ctx->mp_sbuf);
+    //msgpack_sbuffer_destroy(&ctx->mp_sbuf);
     // msgpack_packer_free // 因为 init 实际是 in-place 初始化， 此处不 free
     // msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
     return 0;
@@ -226,12 +226,12 @@ int in_lua_init(struct flb_config *config)
 
     /* read the configure */
     flb_info("in_lua_config before");
-
+#if 0
     /* initialize MessagePack buffers */
     msgpack_sbuffer_init(&ctx->mp_sbuf);
     msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
     ctx->buffer_id = 0;
-
+#endif
     /* Clone the standard input file descriptor */
     //fd = dup(STDOUT_FILENO);
 
@@ -271,8 +271,8 @@ int in_lua_collect(struct flb_config *config, void *in_context)
     int bytes;
     int out_size;
     int ret;
-    char *pack;
-    msgpack_unpacked result;
+    //char *pack;
+    //msgpack_unpacked result;
     size_t start = 0, off = 0;
     struct flb_in_lua_config *ctx = in_context;
 
@@ -284,8 +284,8 @@ int in_lua_collect(struct flb_config *config, void *in_context)
         return -1;
     }
     ctx->buf_len += bytes;
-
     /* Initially we should support JSON input */
+#if 0
     ret = flb_pack_json(ctx->buf, ctx->buf_len, &pack, &out_size);
     if (ret != 0) {
         flb_debug("lua data incomplete, waiting for more data...");
@@ -312,18 +312,20 @@ int in_lua_collect(struct flb_config *config, void *in_context)
     msgpack_unpacked_destroy(&result);
 
     free(pack);
+#endif
     return 0;
 }
 
 void *in_lua_flush(void *in_context, int *size)
 {
     char *buf;
-    msgpack_sbuffer *sbuf;
     struct flb_in_lua_config *ctx = in_context;
 
+#if 0
     if (ctx->buffer_id == 0)
         return NULL;
 
+    msgpack_sbuffer *sbuf;
     sbuf = &ctx->mp_sbuf;
     *size = sbuf->size;
     buf = malloc(sbuf->size);
@@ -337,9 +339,16 @@ void *in_lua_flush(void *in_context, int *size)
     msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
 
     ctx->buffer_id = 0;
+#else
+    *size = ctx->buf_len;
+    buf = (char *) malloc (ctx->buf_len);
+    if (!buf)
+        return NULL;
 
+    memcpy(buf, ctx->buf, ctx->buf_len);
+    ctx->buffer_id = 0;
+#endif
     return buf;
-
 }
 
 /* Plugin reference */
