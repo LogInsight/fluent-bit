@@ -10,6 +10,7 @@
 #include <fluent-bit/flb_config.h>
 #include <fluent-bit/flb_input.h>
 #include <fluent-bit/flb_utils.h>
+#include <stdbool.h>
 
 struct flb_in_lua_file{
     char *journal_directory;

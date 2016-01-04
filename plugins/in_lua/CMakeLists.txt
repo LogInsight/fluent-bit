@@ -7,13 +7,12 @@ set(src
   in_lua.c
   in_lua_config.c
   in_lua_file.c
-  ../../src/flb_pack.c)
+  in_lua_tool.c)
 
 include_directories(
         ${CMAKE_SOURCE_DIR}/3rd_party/luajit-2.0/src
         ../lib/
         ../lib/jsmn
-        ../lib/msgpack-1.2.0/include
         ${extra_headers}
 )
 

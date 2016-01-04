@@ -21,16 +21,10 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include <sys/types.h>
-#include <unistd.h>
-#include <dirent.h>
-//#include <sys/epoll.h>
 
 
 #include <msgpack.h>
 #include <fluent-bit/flb_input.h>
-#include <fluent-bit/flb_config.h>
-#include <fluent-bit/flb_pack.h>
 
 /* LUA Include */
 #include <lua.h>
@@ -41,7 +35,6 @@
 #include "in_lua_config.h"
 #include "in_lua_file.h"
 
-#define CONFIG_REREAD_INTERVAL        60
 
 
 static int gai_pipe_fd_data[2] = {};
@@ -49,20 +42,18 @@ static int gai_pipe_fd_control[2] = {};
 
 
 
-static uint64_t time_click_num = 0;
-
-
 int in_lua_data_write(void *buf, uint32_t len){
     assert(buf != NULL);
     assert(len > 0);
     write(gai_pipe_fd_data[1], buf, len);
+    return 0;
 }
 
 int pipe_write_data(lua_State *L)
 {
     const char *pc_data = NULL;
     pc_data = luaL_checkstring(L, 1);
-    in_lua_data_write(pc_data, strlen(pc_data));
+    in_lua_data_write((void *)pc_data, strlen(pc_data));
     return 0;
 }
 
@@ -199,10 +190,8 @@ int in_lua_exit(void *in_context, struct flb_config *config)
     /* free config->index_files */
     if (ctx->lua_paths)
         mk_string_split_free(ctx->lua_paths);
-
-    /* clear msgpackbuf */
-    // msgpack_packer_free // 因为 init 实际是 in-place 初始化， 此处不 free
-    // msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
+    free(ctx->buf);
+    ctx->buf = NULL;
     return 0;
 }
 
@@ -225,7 +214,6 @@ int in_lua_init(struct flb_config *config)
 
     /* read the configure */
     flb_info("in_lua_config before");
-    ctx->buffer_id = 0;
 
     /* Clone the standard input file descriptor */
     //fd = dup(STDOUT_FILENO);
@@ -264,11 +252,8 @@ int in_lua_init(struct flb_config *config)
 int in_lua_collect(struct flb_config *config, void *in_context)
 {
     int bytes;
-    int out_size;
-    int ret;
-    char *pack;
-    msgpack_unpacked result;
-    size_t start = 0, off = 0;
+    //char *pack;
+    //msgpack_unpacked result;
     struct flb_in_lua_config *ctx = in_context;
 
     bytes = read(ctx->fd,
@@ -278,23 +263,22 @@ int in_lua_collect(struct flb_config *config, void *in_context)
     if (bytes <= 0) {
         return -1;
     }
-    ctx->read_len += bytes;
 
+    ctx->read_len += bytes;
     return 0;
 }
 
 void *in_lua_flush(void *in_context, int *size)
 {
     char *buf;
-    msgpack_sbuffer *sbuf;
     struct flb_in_lua_config *ctx = in_context;
 
     buf = malloc(ctx->read_len);
     if (!buf)
         return NULL;
 
+    memcpy(buf, ctx->buf, ctx->read_len);
     return buf;
-
 }
 
 /* Plugin reference */

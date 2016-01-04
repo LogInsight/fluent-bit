@@ -2,18 +2,32 @@
 // Created by mayabin on 15/12/30.
 //
 
-#include <sys/epoll.h>
-#include <sys/timerfd.h>
-#include <time.h>
+//#include <sys/timerfd.h>
+//#include <time.h>
 
 #include <fluent-bit/flb_utils.h>
-#include <sys/inotify.h>
+#ifdef linux
+    #include <sys/inotify.h>
+#else
+struct inotify_event {
+    int wfd;
+    int cookie;
+    int len;
+    char name[0];
+};
+#endif
+
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <mk_core/mk_event.h>
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
 
 #include "in_lua.h"
 #include "in_lua_config.h"
 #include "in_lua_file.h"
 
-static int g_epoll_fd = -1;
 static int g_inotify_fd = -1;
 
 typedef enum tag_file_event_e {
@@ -25,10 +39,14 @@ typedef enum tag_file_event_e {
     FILE_EVENT_MAX
 }FILE_EVENT_E;
 
-typedef void (*file_event_callback) (struct flb_in_lua_config, struct flb_in_lua_file_info);
+
+struct mk_event_loop *evl;
+
+//typedef void (*file_event_callback) (struct flb_in_lua_config, struct flb_in_lua_file_info);
 
 void in_lua_add_watch(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file)
 {
+#ifdef linux
     struct mk_list *head;
     struct flb_in_lua_file_info *entry;
     int wfd = -1;
@@ -54,23 +72,24 @@ void in_lua_add_watch(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info
         }
 
     }
+#endif
     return;
 }
 
 //move in
 static void in_lua_file_move_to(struct flb_in_lua_config *ctx, struct inotify_event *event) {
     struct flb_in_lua_file_info *entry;
-    struct flb_in_lua_file_info *tmp == NULL;
+    struct flb_in_lua_file_info *tmp = NULL;
     struct mk_list *head;
     char buf[4096];
-    uint32_t *len = buf;
+    uint32_t *len = (uint32_t *)buf;
     int data_len = 0;
 
-    mk_list_foreach(head, ctx->file_config) {
+    mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
-        if (entry->wfd == wfd)
+        if (entry->wfd == event->wfd)
         {
-            entry->new_file = true;
+            entry->new_file = MK_TRUE;
             tmp = entry;
         }
     }
@@ -96,10 +115,10 @@ static void in_lua_file_move_from(struct flb_in_lua_config *ctx, struct inotify_
     struct flb_in_lua_file_info *tmp = NULL;
     struct mk_list *head;
     char buf[4096];
-    uint32_t *len = buf;
+    uint32_t *len = (uint32_t *)buf;
     uint32_t data_len = 5;
 
-    mk_list_foreach(head, ctx->file_config) {
+    mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         if (entry->wfd == event->wfd)
         {
@@ -108,7 +127,7 @@ static void in_lua_file_move_from(struct flb_in_lua_config *ctx, struct inotify_
             {
                 close(entry->file_fd);
                 entry->file_fd = -1;
-                entry->new_file = true;
+                entry->new_file = MK_TRUE;
                 break;
             }
         }
@@ -134,14 +153,14 @@ static void in_lua_file_create(struct flb_in_lua_config *ctx, struct inotify_eve
     struct mk_list *head;
     char buf[4096];
     uint32_t data_len = 5;
-    uint32_t *len = buf;
+    uint32_t *len = (uint32_t *)buf;
 
-    mk_list_foreach(head, ctx->file_config) {
+    mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         if (entry->wfd == event->wfd)
         {
             tmp = entry;
-            entry->new_file = ture;
+            entry->new_file = MK_TRUE;
             break;
         }
     }
@@ -167,9 +186,9 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
     struct mk_list *head;
     char buf[4096];
     uint32_t data_len = 5;
-    uint32_t *len = buf;
+    uint32_t *len = (uint32_t *)buf;
 
-    mk_list_foreach(head, ctx->file_config) {
+    mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         if (entry->wfd == event->wfd)
         {
@@ -178,7 +197,7 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
 
                 close(entry->file_fd);
                 entry->file_fd = -1;
-                entry->new_file = ture;
+                entry->new_file = MK_TRUE;
                 break;
             }
 
@@ -204,27 +223,20 @@ static void in_lua_file_modify(struct flb_in_lua_config *ctx, struct inotify_eve
     struct flb_in_lua_file_info *entry;
     struct mk_list *head;
 
-    mk_list_foreach(head, ctx->file_config) {
+    mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         if (entry->wfd == event->wfd && 0 == strcmp(entry->file_name, event->name) && entry->file_fd != -1)
         {
-            entry->changed = true;
+            entry->changed = MK_TRUE;
             break;
         }
     }
     return;
 }
 
-static file_event_callback g_file_event_callback[FILE_EVENT_MAX] = {
-    [FILE_EVENT_CREATE] = in_lua_file_create,
-    [FILE_EVENT_DELETE] = in_lua_file_delete,
-    [FILE_EVENT_MODIFY] = in_lua_file_modify,
-    [FILE_EVENT_MOVE_FROM] = in_lua_file_move_form,
-    [FILE_EVENT_MOVE_TO] = in_lua_file_move_to,
-};
-
 static int in_lua_file_event(struct flb_in_lua_config *ctx, int i_watch_fd)
 {
+#ifdef linux
     int i_read_len = -1;
     int i_num = 0;
     char sz_buf[4096];
@@ -275,20 +287,27 @@ static int in_lua_file_event(struct flb_in_lua_config *ctx, int i_watch_fd)
         }
     }
     //LIMIT_CheckCPULimit(uiCurrentTime, LIMIT_GetCurrentTime());
+#endif
     return 1;
 }
 
 int in_lua_read_event(struct flb_in_lua_config *ctx) {
     int event_num = -1;
-    struct epoll_event st_epoll_event;
+
+    struct mk_event *event;
+    //struct epoll_event st_epoll_event;
     //memset(&st_epoll_event, 0, sizeof(st_epoll_event));
 
-    event_num = epoll_wait(g_i_epoll_fd, &st_epoll_event, 1, 0);
+    //event_num = epoll_wait(g_i_epoll_fd, &st_epoll_event, 1, 0);
+    event_num = mk_event_wait(evl);
 
     if (event_num > 0)
     {
-        return file_data_get(ctx, st_epoll_event.data.fd);
+        mk_event_foreach(event, evl) {
+            file_data_get(ctx, event->fd);
+        }
     }
+    return 0;
 }
 
 int file_open_behave(int fd, int offset, int stream_id, int sub_stream_id, const char *file_name)
@@ -341,36 +360,48 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
     char file_name[4096];
     int len = 0;
 
-    struct mk_list *head
     struct flb_in_lua_file_info *file;
-    struct epoll_event  st_epoll_event;
-    int wfd = -1;
+    //struct epoll_event  st_epoll_event;
+
+    struct mk_list *head;
     int file_fd = -1;
 
-    g_epoll_fd = epoll_create(1024);
-
+    //g_epoll_fd = epoll_create(1024);
+    evl = mk_event_loop_create(2);
+/*
     if (g_epoll_fd == -1){
         flb_utils_error_c("file init failed for epoll create.");
     }
-
+*/
+    if (NULL == evl) {
+        flb_utils_error_c("file init failed for event create.");
+    }
+#ifdef linux
+    struct mk_event *event;
     g_inotify_fd = inotify_init1(IN_NONBLOCK);
     if (g_inotify_fd == -1) {
         flb_utils_error_c("file init failed for inotify init.")
     }
-
+/*
     st_epoll_event.events = EPOLLIN|EPOLLHUP;
     st_epoll_event.data.fd = g_inotify_fd;
     epoll_ctl(g_epoll_fd, EPOLL_CTL_ADD, g_inotify_fd, &st_epoll_event);
+*/
 
-    mk_list_init(&g_wfd_record);
+    event->mask   = MK_EVENT_EMPTY;
+    event->status = MK_EVENT_NONE;
 
-
+    ret = mk_event_add(evl,
+                       g_inotify_fd,
+                       FLB_ENGINE_EV_CORE,
+                       MK_EVENT_READ, event);
+#endif
     file_name[0] = '\0';
 
     ctx->read_len = 0;
 
     mk_list_foreach(head, &ctx->file_config) {
-        file = mk_list_entry(head, struct flb_in_lua_config, _head);
+        file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         in_lua_add_watch(ctx, file);
 
         if(file->new_file) {
@@ -382,12 +413,13 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
             //打开文件
             file_fd = in_lua_file_open(file_name, file->offset);
             file->file_fd = file_fd;
-            file->changed = true;
+            file->changed = MK_TRUE;
         }
     }
 }
 
-void in_lua_timer_create(){
+int in_lua_timer_create(){
+#if 0
     struct itimerspec new_value;
     int max_exp, fd;
     struct timespec now;
@@ -405,7 +437,7 @@ void in_lua_timer_create(){
     new_value.it_value.tv_nsec = now.tv_nsec;
     new_value.it_interval.tv_sec = 1;
     new_value.it_interval.tv_nsec = 0;
-
+    mk_event_timeout_create()
     fd = timerfd_create(CLOCK_REALTIME, 0);
     if (fd == -1)
         flb_utils_error_c("timerfd_create failed.");
@@ -414,6 +446,8 @@ void in_lua_timer_create(){
         flb_utils_error_c("timerfd_settime failed.");
 
     return fd;
+#endif
+    return -1;
 }
 
 int file_stream_begin_behave(unsigned char ucType, int uiStreamId)
@@ -443,9 +477,9 @@ int file_stream_behave(unsigned int uiStreamId)
 
 
 void in_lua_file_read(struct flb_in_lua_config *ctx, u_int64_t times) {
-    struct mk_list *head
+    struct mk_list *head;
     struct flb_in_lua_file_info *file;
-    static current_fd = -1;
+    static int current_fd = -1;
     uint32_t real_data_len = 0;
     char *pc_current = NULL;
     lua_State *L = ctx->lua_state;
@@ -454,7 +488,7 @@ void in_lua_file_read(struct flb_in_lua_config *ctx, u_int64_t times) {
     int read_len;
 
     mk_list_foreach(head, &ctx->file_config) {
-        file = mk_list_entry(head, struct flb_in_lua_config, _head);
+        file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         in_lua_add_watch(ctx, file);
 
         if(file->changed && file->file_fd != -1 && 0 == times % file->file_config.rescan_interval) {
@@ -474,7 +508,7 @@ void in_lua_file_read(struct flb_in_lua_config *ctx, u_int64_t times) {
                 }
                 //暂时不考虑单条日志超1Ｍ的情况，后续追加。
                 if (real_data_len < read_len  && real_data_len > 0) {
-                    lseek(i_fd,  real_data_len - read_len, SEEK_CUR);
+                    lseek(file->file_fd,  real_data_len - read_len, SEEK_CUR);
                 }
 
                 if (real_data_len == 0) {
@@ -486,14 +520,14 @@ void in_lua_file_read(struct flb_in_lua_config *ctx, u_int64_t times) {
 
                 lua_getglobal(L, "process");
                 lua_pushlstring(L, ctx->buf, real_data_len);
-
+                lua_pcall(L, 1, 1, 0);
                 res = lua_tostring(L, -1);
 
                 read_len = strlen(res);
                 real_data_len = htonl(read_len);
                 in_lua_data_write(&real_data_len, 4);
                 in_lua_data_write(&type, 1);
-                in_lua_data_write(res, read_len);
+                in_lua_data_write((void *)res, read_len);
             }
             else {
                 file->changed = false;
