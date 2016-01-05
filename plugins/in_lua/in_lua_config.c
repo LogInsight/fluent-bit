@@ -186,78 +186,6 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
     return;
 }
 
-#if 0
-void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf) {
-    /*
-     * 从文件中加载 配置信息
-     * */
-
-    if (NULL == conf || NULL == ctx) {
-        return;
-    }
-    struct flb_in_lua_exec_info *file;
-    struct mk_rconf_section *section;
-    struct mk_rconf_entry *entry;
-    struct mk_list *head;
-
-    /* 初始化系统的环境变量 */
-    {
-        int status, result;
-        struct mk_string_line *lua_path_entry;
-        lua_State *L = (lua_State *) ctx->lua_state;
-        section = mk_rconf_section_get(conf, "LS");
-        if (section) {
-            /* Validate TD section keys */
-            if (MK_TRUE == (size_t) mk_rconf_section_get_key(section, "lua_debug", MK_RCONF_BOOL)) {
-                // luaopen_debug
-                lua_pushcfunction(L, luaopen_debug);
-                lua_pushstring(L, "");
-                lua_call(L, 1, 0);
-            }
-
-            //if(MK_TRUE == (size_t)mk_rconf_section_get_key(section, "lua_package", MK_RCONF_BOOL)) {
-            if (1) {
-                // 此处必须为 on ,  因为没有 package 机制，就没有 require
-                // luaopen_package
-                lua_pushcfunction(L, luaopen_package);
-                lua_pushstring(L, "");
-                lua_call(L, 1, 0);
-            }
-
-            ctx->lua_paths = mk_rconf_section_get_key(section, "lua_path", MK_RCONF_LIST);
-            // set package path
-            mk_list_foreach(head, &ctx->lua_paths) {
-                lua_path_entry = mk_list_entry(head, struct mk_string_line, _head);
-                flb_info("extend_lua_path lua_path = %s", lua_path_entry->val);
-                set_lua_path(L, lua_path_entry->val, (size_t) lua_path_entry->len);
-            }
-            // end check path
-        }
-        /*
-         * - 最初的设计为 通过 require 动态加载
-         * - 实际实现为， 直接执行制定的 LUA 脚本， 读取脚本中、调用 定义的 全局函数
-         * */
-        ctx->lua_engine = mk_rconf_section_get_key(section, "lua_engine", MK_RCONF_STR);
-        flb_info("lua_execute lua_engine = %s", ctx->lua_engine);
-        status = luaL_loadfile(L, ctx->lua_engine);
-        if (status) {
-            /* If something went wrong, error message is at the top of */
-            /* the stack */
-            fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
-            exit(1);
-        }
-        /* TODO: Give the global object here */
-        /* Ask Lua to run our little script */
-        result = lua_pcall(L, 0, LUA_MULTRET, 0);
-        if (result) {
-            fprintf(stderr, "Failed to start script: %s\n", lua_tostring(L, -1));
-            exit(1);
-        }
-        /* TODO: call LUA function from C */
-        //in_lua_require(L, ctx->lua_engine, "_ls_engine");
-    }
-}
-#endif
 void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char *key)
 {
     struct flb_in_lua_exec_info *file;
@@ -337,7 +265,7 @@ void in_lua_stat_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
     }
 }
 
-void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
+static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 {
     struct mk_rconf_section *section;
     struct mk_rconf_entry *entry;
@@ -354,6 +282,7 @@ void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
     gst_global_config.cpu_limit = IN_LUA_DEFAULT_CPU_LIMIT;
     gst_global_config.io_limit = IN_LUA_DEFAULT_IO_LIMIT;
     gst_global_config.mem_size = IN_LUA_DEFAULT_MEM_SIZE;
+    gst_global_config.watch_mode = "event";
 
     section = mk_rconf_section_get(conf, "LS");
     if (section)
@@ -388,24 +317,8 @@ void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
                 }
             }
             else if (0 == strcasecmp(entry->key, "lua_engine")){
-                flb_info("lua_execute lua_engine = %s", ctx->lua_engine);
-                status = luaL_loadfile(L, ctx->lua_engine);
-                if (status) {
-                    /* If something went wrong, error message is at the top of */
-                    /* the stack */
-                    fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
-                    exit(1);
-                }
-                /* TODO: Give the global object here */
-                /* Ask Lua to run our little script */
-                resault = lua_pcall(L, 0, LUA_MULTRET, 0);
-                if (resault) {
-                    fprintf(stderr, "Failed to start script: %s\n", lua_tostring(L, -1));
-                    exit(1);
-                }
-
-                /* TODO: call LUA function from C */
-                //in_lua_require(L, ctx->lua_engine, "_ls_engine");
+                ctx->lua_engine = entry->val;
+                flb_info("lua_execute lua_engine = %s", realpath(ctx->lua_engine, NULL));
             }
             else if (0 == strcasecmp(entry->key, "access_key")){
                 gst_global_config.access_key = entry->val;
@@ -438,15 +351,43 @@ void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
                     flb_error("mem_size error in [LS], the value must in [1, 64].");
                 }
             }
+            else if (0 == strcasecmp(entry->key, "watch_mode")) {
+                if (0 == strcasecmp(entry->val, "timer") || 0 == strcasecmp(entry->val, "event")){
+                    gst_global_config.watch_mode = entry->val;
+                }
+                else {
+                    flb_warn("watch_mode error in [LS], the value must be 'timer' or 'event'.");
+                }
+            }
             else {
                 flb_warn("config [LS] not support %s.\r\n", entry->key);
             }
         }
     }
+    if (ctx->lua_engine) {
+        status = luaL_loadfile(L, ctx->lua_engine);
+        if (status) {
+            /* If something went wrong, error message is at the top of */
+            /* the stack */
+            fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
+            exit(1);
+        }
+        /* TODO: Give the global object here */
+        /* Ask Lua to run our little script */
+        resault = lua_pcall(L, 0, LUA_MULTRET, 0);
+        if (resault) {
+            fprintf(stderr, "Failed to start script: %s\n", lua_tostring(L, -1));
+            exit(1);
+        }
 
+        /* TODO: call LUA function from C */
+        //in_lua_require(L, ctx->lua_engine, "_ls_engine");
+    }
+    if (strcasecmp(gst_global_config.watch_mode, "timer")) {
+        ctx->timer_mode = MK_TRUE;
+    }
     ctx->buf = (char *)malloc(gst_global_config.mem_size);
     ctx->buf_len = gst_global_config.mem_size;
-    flb_info("ls config done.");
     return;
 }
 
@@ -458,7 +399,6 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
         return;
     }
 
-    flb_info("do in_lua_config");
 
     int loop_num = 0;
     struct mk_rconf_section *section;
@@ -467,9 +407,7 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 
     in_lua_ls_config(ctx, conf);
 
-    for (loop_num = 0; loop_num < config_max; loop_num ++)
-    {
-        flb_info("heheheh");
+    for (loop_num = 0; loop_num < config_max; loop_num ++) {
         section = mk_rconf_section_get(conf, gst_config_call[loop_num].key);
         if (section)
         {
