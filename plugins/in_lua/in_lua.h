@@ -25,15 +25,16 @@
 #include <fluent-bit/flb_config.h>
 #include <fluent-bit/flb_input.h>
 #include <fluent-bit/flb_utils.h>
+#include <mk_core/mk_event.h>
+#include <stdbool.h>
 
 /* LUA Input configuration & context */
 struct flb_in_lua_config {
-    //TODO: fork & pipe ?
-    int fd;                           /* stdin file descriptor */
+    //TODO: fork & pipe ?                 /* 如果是timer 模式，操作是打开，关闭，如果不是，则是常打开 */
+    int fd;                           /* lua file descriptor */
     int buf_len;                      /* read buffer length    */
     char *buf;                        /* read buffer: 1MB */
     int read_len;
-
     int buffer_id;
     //struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer             */
     //struct msgpack_packer mp_pck;    /* msgpack packer              */
@@ -43,6 +44,8 @@ struct flb_in_lua_config {
     struct mk_list file_config;
     struct mk_list exec_config;
     struct mk_list stat_config;
+    struct mk_event_loop *evl;
+    bool timer_mode;
 };
 
 

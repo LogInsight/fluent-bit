@@ -7,6 +7,7 @@
 
 # include <stdio.h>
 # include <stdlib.h>
+#include <stdint.h>
 
 unsigned long Crc32_ComputeBuf(unsigned long inCrc32, const void *buf, size_t bufLen);
 

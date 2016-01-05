@@ -37,12 +37,14 @@ struct flb_in_lua_global{
     char *hostname;
     char *access_key;
     char *host_key;
+    char *watch_mode;
     int io_limit;
     int cpu_limit;
     int mem_size;
 };
 
 struct flb_in_lua_file_info {
+    struct mk_event event;
     struct mk_list _head;
     struct flb_in_lua_file file_config;
     char file_name[1024];
