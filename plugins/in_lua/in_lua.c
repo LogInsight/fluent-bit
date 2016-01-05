@@ -38,7 +38,6 @@
 void in_lua_get_data(struct flb_in_lua_config *ctx)
 {
     in_lua_file_init(ctx);
-    in_lua_file_done(ctx);
 
     //创建epoll
     //int epoll_fd = epoll_create()

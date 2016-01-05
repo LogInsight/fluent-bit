@@ -7,7 +7,7 @@
 #include <sys/stat.h>
 #include "in_lua_tool.h"
 
-unsigned long Crc32_ComputeBuf(unsigned long inCrc32, const void *buf, size_t bufLen) {
+unsigned long crc32_compute_buf(unsigned long inCrc32, const void *buf, size_t bufLen) {
     static const unsigned long crcTable[256] = {
             0x00000000,0x77073096,0xEE0E612C,0x990951BA,0x076DC419,0x706AF48F,0xE963A535,
             0x9E6495A3,0x0EDB8832,0x79DCB8A4,0xE0D5E91E,0x97D2D988,0x09B64C2B,0x7EB17CBD,
@@ -61,11 +61,12 @@ unsigned long Crc32_ComputeBuf(unsigned long inCrc32, const void *buf, size_t bu
 }
 
 
-int Get_Last_File(char *dirname, uint32_t dir_size, char *filename, uint32_t file_size) {
+int get_last_file(char *dirname, uint32_t dir_size, char *filename, uint32_t file_size) {
     DIR* dir = opendir(dirname);
     struct dirent* child;
 
     time_t t = 0;
+#if 0
     while ((child = readdir(dir)) != NULL) {
         if (child->d_name[0] == '.') {
             continue;
@@ -97,5 +98,6 @@ int Get_Last_File(char *dirname, uint32_t dir_size, char *filename, uint32_t fil
         }
         
     }
+#endif
     return 0;
 }
