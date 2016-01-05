@@ -23,6 +23,7 @@ struct inotify_event {
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
+#include <unistd.h>
 
 #include "in_lua.h"
 #include "in_lua_config.h"
@@ -43,6 +44,51 @@ typedef enum tag_file_event_e {
 struct mk_event_loop *evl;
 
 //typedef void (*file_event_callback) (struct flb_in_lua_config, struct flb_in_lua_file_info);
+
+int tlv_encode(TLV_HEAD_S *pstHead, void *pBuf, unsigned int uiBufLen)
+{
+    unsigned int uiLen = sizeof(pstHead->stTl) + pstHead->stTl.uiLen;
+
+    if(uiLen > uiBufLen)
+    {
+        return -1;
+    }
+    memcpy(pBuf, pstHead, sizeof(pstHead->stTl));
+    memcpy(pBuf + sizeof(pstHead->stTl), pstHead->pcValue, pstHead->stTl.uiLen);
+    return uiLen;
+}
+
+int data_encode(unsigned char ucType,
+                void *pHead,
+                unsigned  int uiHeadLen,
+                void *pBuf,
+                unsigned int uiBufLen,
+                void *pOutBuf,
+                unsigned int uiOutBufLen)
+{
+    char *pcCurrent = pOutBuf;
+    unsigned int uiLen = 1 + uiHeadLen + uiBufLen;
+//    printf("data len: %d \r\n", uiLen);
+
+    if (uiLen > uiOutBufLen)
+    {
+        return -1;
+    }
+
+    *((unsigned int *)pcCurrent) = htonl(uiLen);
+    pcCurrent += sizeof(int);
+    *pcCurrent = ucType;
+    pcCurrent ++;
+
+    memcpy(pcCurrent, pHead, uiHeadLen);
+
+    if (uiBufLen > 0)
+    {
+        memcpy(pcCurrent + uiHeadLen, pBuf, uiBufLen);
+    }
+    return uiLen + 4;
+}
+
 
 void in_lua_add_watch(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file)
 {
@@ -304,7 +350,7 @@ int in_lua_read_event(struct flb_in_lua_config *ctx) {
     if (event_num > 0)
     {
         mk_event_foreach(event, evl) {
-            file_data_get(ctx, event->fd);
+            in_lua_file_event(ctx, event->fd);
         }
     }
     return 0;

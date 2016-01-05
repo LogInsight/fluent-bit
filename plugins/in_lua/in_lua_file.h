@@ -146,18 +146,7 @@ typedef struct tag_stream_id_info_s
 
 #pragma pack()
 
-int tlv_encode(TLV_HEAD_S *pstHead, void *pBuf, unsigned int uiBufLen)
-{
-    unsigned int uiLen = sizeof(pstHead->stTl) + pstHead->stTl.uiLen;
-
-    if(uiLen > uiBufLen)
-    {
-        return -1;
-    }
-    memcpy(pBuf, pstHead, sizeof(pstHead->stTl));
-    memcpy(pBuf + sizeof(pstHead->stTl), pstHead->pcValue, pstHead->stTl.uiLen);
-    return uiLen;
-}
+int tlv_encode(TLV_HEAD_S *pstHead, void *pBuf, unsigned int uiBufLen);
 
 int data_encode(unsigned char ucType,
                 void *pHead,
@@ -165,31 +154,7 @@ int data_encode(unsigned char ucType,
                 void *pBuf,
                 unsigned int uiBufLen,
                 void *pOutBuf,
-                unsigned int uiOutBufLen)
-{
-    char *pcCurrent = pOutBuf;
-    unsigned int uiLen = 1 + uiHeadLen + uiBufLen;
-//    printf("data len: %d \r\n", uiLen);
-
-    if (uiLen > uiOutBufLen)
-    {
-        return -1;
-    }
-
-    *((unsigned int *)pcCurrent) = htonl(uiLen);
-    pcCurrent += sizeof(int);
-    *pcCurrent = ucType;
-    pcCurrent ++;
-
-    memcpy(pcCurrent, pHead, uiHeadLen);
-
-    if (uiBufLen > 0)
-    {
-        memcpy(pcCurrent + uiHeadLen, pBuf, uiBufLen);
-    }
-    return uiLen + 4;
-}
-
+                unsigned int uiOutBufLen);
 
 void in_lua_file_done(struct flb_in_lua_config *ctx);
 void in_lua_file_init(struct flb_in_lua_config *ctx);
