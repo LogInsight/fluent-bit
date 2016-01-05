@@ -3,6 +3,7 @@ _book/
 .idea/
 build/
 bld/
+mac_build/
 
 # generate files
 include/fluent-bit/flb_plugins.h

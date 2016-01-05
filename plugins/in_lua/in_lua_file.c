@@ -6,7 +6,7 @@
 //#include <time.h>
 
 #include <fluent-bit/flb_utils.h>
-#ifdef linux
+#ifdef LINUX
     #include <sys/inotify.h>
 #else
 struct inotify_event {
@@ -92,7 +92,7 @@ int data_encode(unsigned char ucType,
 
 void in_lua_add_watch(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file)
 {
-#ifdef linux
+#ifdef LINUX
     struct mk_list *head;
     struct flb_in_lua_file_info *entry;
     int wfd = -1;
@@ -282,7 +282,7 @@ static void in_lua_file_modify(struct flb_in_lua_config *ctx, struct inotify_eve
 
 static int in_lua_file_event(struct flb_in_lua_config *ctx, int i_watch_fd)
 {
-#ifdef linux
+#ifdef LINUX
     int i_read_len = -1;
     int i_num = 0;
     char sz_buf[4096];
@@ -422,7 +422,7 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
     if (NULL == evl) {
         flb_utils_error_c("file init failed for event create.");
     }
-#ifdef linux
+#ifdef LINUX
     struct mk_event *event;
     g_inotify_fd = inotify_init1(IN_NONBLOCK);
     if (g_inotify_fd == -1) {
