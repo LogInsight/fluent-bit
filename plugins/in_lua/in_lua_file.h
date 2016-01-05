@@ -157,4 +157,5 @@ int data_encode(unsigned char ucType,
                 unsigned int uiOutBufLen);
 
 void in_lua_file_init(struct flb_in_lua_config *ctx);
+void in_lua_file_rescan(struct flb_in_lua_config *ctx);
 #endif //FLUENT_BIT_IN_LUA_FILE_H

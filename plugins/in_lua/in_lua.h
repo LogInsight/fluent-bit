@@ -28,6 +28,8 @@
 #include <mk_core/mk_event.h>
 #include <stdbool.h>
 
+#define IN_LUA_DEFAULT_RESAN_TIME   60
+
 /* LUA Input configuration & context */
 struct flb_in_lua_config {
     //TODO: fork & pipe ?                 /* 如果是timer 模式，操作是打开，关闭，如果不是，则是常打开 */

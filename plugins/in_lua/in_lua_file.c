@@ -227,7 +227,6 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
                 mk_event_del(ctx->evl, &entry->event);
                 break;
             }
-
         }
     }
 
@@ -427,6 +426,25 @@ int in_lua_file_read(void *data) {
     return 0;
 }
 
+void in_lua_add_event(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file) {
+    struct mk_event *event;
+
+    if (file->file_fd == -1) {
+        return;
+    }
+
+    file->changed = MK_TRUE;
+
+    event = &file->event;
+    event->fd           = file->file_fd;
+    event->type         = MK_EVENT_CUSTOM;
+    event->mask         = MK_EVENT_EMPTY;
+    event->handler      = in_lua_file_read;
+    event->status       = MK_EVENT_NONE;
+    event->data         = (void *)ctx;
+    return;
+}
+
 void in_lua_file_init(struct flb_in_lua_config *ctx)
 {
     char file_name[4096];
@@ -451,13 +469,13 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
     event->mask         = MK_EVENT_EMPTY;
     event->handler      = in_lua_read_event;
     event->status       = MK_EVENT_NONE;
-    event->data = (void *)ctx;
+    event->data         = (void *)ctx;
 
     ret = mk_event_add(ctx->evl, g_i_inotify_fd, MK_EVENT_CUSTOM, MK_EVENT_READ, event);
     if (ret == -1) {
         close(g_i_inotify_fd);
         flb_utils_error_c("file watch event add failed.");
-        return NULL;
+        return;
     }
 
 
@@ -477,17 +495,10 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
             file->offset = 0;
             //打开文件
             file_fd = in_lua_file_open(file_name, file->offset);
+
             file->file_fd = file_fd;
-            file->changed = MK_TRUE;
 
-            event = &file->event;
-            event->fd           = file_fd;
-            event->type         = MK_EVENT_CUSTOM;
-            event->mask         = MK_EVENT_EMPTY;
-            event->handler      = in_lua_file_read;
-            event->status       = MK_EVENT_NONE;
-            event->data =       (void *)ctx;
-
+            in_lua_add_event(ctx, file);
             mk_event_add(ctx->evl, file_fd, MK_EVENT_CUSTOM, MK_EVENT_READ, &file);
         }
     }
@@ -515,6 +526,34 @@ int file_stream_begin_behave(unsigned char ucType, struct flb_in_lua_file_info *
 int file_stream_behave(struct flb_in_lua_file_info *file)
 {
     return file_stream_begin_behave(COMMAND_STREAM, file);
+}
+
+void in_lua_file_rescan(struct flb_in_lua_config *ctx) {
+    struct mk_list *head;
+    struct flb_in_lua_file_info *entry;
+    int fd = -1;
+
+    mk_list_foreach(head, &ctx->file_config){
+        entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
+
+        if (entry->new_file) {
+            entry->new_file = MK_FALSE;
+            in_lua_get_file(ctx, entry);
+            if (entry->new_file) {
+                if (entry->file_fd != -1){
+                    close(entry->file_fd);
+                    entry->file_fd = -1;
+                    mk_event_del(ctx->evl, &entry->event);
+                }
+                entry->offset = 0;
+
+                fd = in_lua_file_open(entry->file_name, 0);
+
+                entry->file_fd = fd;
+                in_lua_add_event(ctx, entry);
+            }
+        }
+    }
 }
 
 /*

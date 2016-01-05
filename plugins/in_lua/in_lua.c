@@ -167,19 +167,27 @@ int in_lua_init(struct flb_config *config)
 int in_lua_collect(struct flb_config *config, void *in_context)
 {
     int bytes;
+    static uint64_t all_time_record = 0;
+
     //char *pack;
     //msgpack_unpacked result;
     struct flb_in_lua_config *ctx = in_context;
+    struct mk_list *head;
 
-    bytes = read(ctx->fd,
-                 ctx->buf + ctx->read_len,
-                 ctx->buf_len - ctx->read_len);
-    flb_debug("in_lua read() = %i", bytes);
-    if (bytes <= 0) {
-        return -1;
+    struct flb_in_lua_exec_info *exec;
+
+    if (0 == all_time_record % IN_LUA_DEFAULT_RESAN_TIME) {
+        in_lua_file_rescan(ctx);
     }
 
-    ctx->read_len += bytes;
+    mk_list_foreach(head, &ctx->exec_config) {
+        exec = mk_list_entry(head, struct flb_in_lua_exec_info, _head);
+        if (0 == all_time_record % exec->exec_config.refresh_interval) {
+            //todo exec event
+        }
+    }
+
+
     return 0;
 }
 
@@ -195,12 +203,12 @@ void *in_lua_flush(void *in_context, int *size)
     memcpy(buf, ctx->buf, ctx->read_len);
     return buf;
 }
-
+/*
 int in_lua_pre_run(void *in_context, struct flb_config *config) {
     struct flb_in_lua_config *ctx = in_context;
     return 0;
 }
-
+*/
 /* Plugin reference */
 struct flb_input_plugin in_lua_plugin = {
     .name         = "lua",
