@@ -82,9 +82,10 @@ static void in_lua_open_libs(lua_State *L) {
     return;
 }
 static void in_lua_ctx_init(struct flb_in_lua_config *ctx) {
+    flb_info("in_lua_ctx_init");
     memset(ctx, 0, sizeof(struct flb_in_lua_config));
     ctx->fd = -1;
-    mk_list_init(ctx->lua_paths);
+    ctx->lua_paths = NULL;
     mk_list_init(&ctx->file_config);
     mk_list_init(&ctx->exec_config);
     mk_list_init(&ctx->stat_config);
@@ -114,6 +115,7 @@ int in_lua_init(struct flb_config *config)
     /* Allocate space for the configuration */
     ctx = malloc(sizeof(struct flb_in_lua_config));
     if (!ctx) {
+        flb_error("malloc failed.");
         return -1;
     }
 

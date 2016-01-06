@@ -397,10 +397,12 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 {
     if (NULL == conf)
     {
+        flb_error("config is NULL.");
         return;
     }
 
 
+    flb_info("call in_lua_config");
     int loop_num = 0;
     struct mk_rconf_section *section;
     struct mk_rconf_entry *entry;
