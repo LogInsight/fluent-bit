@@ -17,10 +17,9 @@ const size_t send_buf_size = 1024 * 1024;
 struct flb_output_plugin out_lua_plugin;
 
 #define SERVPORT 11110
-#define SERVER_IP "192.168.200.227"
+#define SERVER_IP "192.168.200.228"
 
-int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
-{
+int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config) {
     flb_info("call out_lua_init");
     int ret;
     struct flb_out_lua_config *ctx;
@@ -70,8 +69,7 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
     return 0;
 }
 
-int cb_lua_exit(void *data, struct flb_config *config)
-{
+int cb_lua_exit(void *data, struct flb_config *config) {
     flb_info("call cb_lua_exit");
     (void) config;
     struct flb_out_lua_config *ctx = data;
@@ -83,22 +81,12 @@ int cb_lua_exit(void *data, struct flb_config *config)
 }
 
 int cb_lua_flush(void *data, size_t bytes, void *out_context,
-                     struct flb_config *config)
-{
+                     struct flb_config *config) {
     flb_info("call out lua flush");
-    int ret = -1;
-    int entries = 0;
-    size_t off = 0;
-    size_t total;
-    size_t bytes_sent;
-    char *buf = NULL;
-    msgpack_packer   mp_pck;
-    msgpack_sbuffer  mp_sbuf;
-    msgpack_unpacked result;
-    struct flb_out_lua_config *ctx = out_context;
     (void) config;
-    printf("the flush data = %.*s\n", (int) bytes, (char *)data);
-
+    struct flb_out_fluentd_config *ctx = out_context;
+    int ret = -1;
+    ret = parse_data_type(ctx, data, bytes);
     return ret;
 }
 

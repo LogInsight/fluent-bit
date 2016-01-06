@@ -63,31 +63,110 @@ bool storage_process_connect_close(struct flb_out_lua_config *ctx) {
     return true;
 }
 
-void
-process_data_body(uint8_t type, const char *data, size_t len) {
+static void
+process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data, size_t len) {
     switch (type) {
         case DATA_PACK: {
-            break;
-        }
-        case COMMAND_CONNECT: {
-            break;
-        }
-        case COMMAND_CLOSE: {
+            size_t send_size = 0;
+            flb_io_net_write(ctx->stream, (void *)data, len, &send_size);
+            if (len != send_size) {
+                flb_error("io net wrie not complete");
+            }
+            uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
+            if (recv_size < sizeof(uint16_t)) {
+                break;
+            }
+            char *recv_body = ctx->buf;
+            uint16_t error_code;
+            error_code = *(uint16_t*) recv_body;
+            error_code = ntohs(error_code);
+            if (error_code != RET_STATUS_OK) {
+                flb_error("connect res error code = %u\n", error_code);
+                break;
+            }
             break;
         }
         case COMMAND_STREAM_START: {
+            size_t send_size = 0;
+            flb_io_net_write(ctx->stream, (void *)data, len, &send_size);
+            if (len != send_size) {
+                flb_error("io net wrie not complete");
+            }
+            uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
+            if (recv_size < sizeof(uint16_t)) {
+                break;
+            }
+            char *recv_body = ctx->buf;
+            uint16_t error_code;
+            error_code = *(uint16_t*) recv_body;
+            error_code = ntohs(error_code);
+            if (error_code != RET_STATUS_OK) {
+                flb_error("connect res error code = %u\n", error_code);
+                break;
+            }
             break;
         }
         case COMMAND_STREAM_END: {
+            size_t send_size = 0;
+            flb_io_net_write(ctx->stream, (void *)data, len, &send_size);
+            if (len != send_size) {
+                flb_error("io net wrie not complete");
+            }
+            uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
+            if (recv_size < sizeof(uint16_t)) {
+                break;
+            }
+            char *recv_body = ctx->buf;
+            uint16_t error_code;
+            error_code = *(uint16_t*) recv_body;
+            error_code = ntohs(error_code);
+            if (error_code != RET_STATUS_OK) {
+                flb_error("connect res error code = %u\n", error_code);
+                break;
+            }
             break;
         }
         case COMMAND_STREAM: {
+            size_t send_size = 0;
+            flb_io_net_write(ctx->stream, (void *)data, len, &send_size);
+            if (len != send_size) {
+                flb_error("io net wrie not complete");
+            }
+            uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
+            if (recv_size < sizeof(uint16_t)) {
+                break;
+            }
+            char *recv_body = ctx->buf;
+            uint16_t error_code;
+            error_code = *(uint16_t*) recv_body;
+            error_code = ntohs(error_code);
+            if (error_code != RET_STATUS_OK) {
+                flb_error("connect res error code = %u\n", error_code);
+                break;
+            }
             break;
         }
         case COMMAND_SUBSTREAM: {
             break;
         }
         case COMMAND_FILE: {
+            size_t send_size = 0;
+            flb_io_net_write(ctx->stream, (void *)data, len, &send_size);
+            if (len != send_size) {
+                flb_error("io net wrie not complete");
+            }
+            uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
+            if (recv_size < sizeof(uint16_t)) {
+                break;
+            }
+            char *recv_body = ctx->buf;
+            uint16_t error_code;
+            error_code = *(uint16_t*) recv_body;
+            error_code = ntohs(error_code);
+            if (error_code != RET_STATUS_OK) {
+                flb_error("connect res error code = %u\n", error_code);
+                break;
+            }
             break;
         }
         case COMMAND_STREAM_INFO: {
@@ -101,4 +180,26 @@ process_data_body(uint8_t type, const char *data, size_t len) {
             break;
         }
     }
+}
+
+size_t parse_data_type(struct flb_out_lua_config *ctx, void *data, size_t len) {
+    const char *data_ptr = (const char *)data;
+    size_t data_pos = 0;
+    while (data_pos < len) {
+        uint32_t event_size = 0;
+        if (data_pos + sizeof(uint32_t) < len) {
+            break;
+        }
+        event_size = *(uint32_t *)data_ptr;
+        data_pos += sizeof(uint32_t);
+        if (data_pos + event_size < len) {
+            break;
+        }
+        uint8_t type = 0;
+        type = *(uint8_t*)data_ptr;
+        data_ptr += sizeof(uint8_t);
+        process_data_body(ctx, type, data_ptr, event_size - sizeof(uint8_t));
+        data_pos += event_size;
+    }
+    return data_pos;
 }

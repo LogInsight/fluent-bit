@@ -13,7 +13,7 @@
 
 #ifndef __APPLE__
 
-    unsigned long long static inline ntohll(unsigned long long val) {
+unsigned long long static inline ntohll(unsigned long long val) {
     if (__BYTE_ORDER == __LITTLE_ENDIAN)
     {
         return (((unsigned long long )htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
