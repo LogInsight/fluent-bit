@@ -7,6 +7,8 @@
 
 #include <fluent-bit/flb_utils.h>
 #include <sys/inotify.h>
+#include <arpa/inet.h>
+#include <sys/time.h>
 
 #include <sys/stat.h>
 #include <fcntl.h>
@@ -23,18 +25,22 @@
 
 static int g_i_inotify_fd= -1;
 
+#define MAX_DATA_LEN   (64 << 10)
+
 //typedef void (*file_event_callback) (struct flb_in_lua_config, struct flb_in_lua_file_info);
+
+int file_stream_behave(struct flb_in_lua_file_info *file);
 
 int tlv_encode(TLV_HEAD_S *pstHead, void *pBuf, unsigned int uiBufLen)
 {
-    unsigned int uiLen = sizeof(pstHead->stTl) + pstHead->stTl.uiLen;
+    unsigned int uiLen = sizeof(pstHead->stTl) + pstHead->stTl.len;
 
     if(uiLen > uiBufLen)
     {
         return -1;
     }
     memcpy(pBuf, pstHead, sizeof(pstHead->stTl));
-    memcpy(pBuf + sizeof(pstHead->stTl), pstHead->pcValue, pstHead->stTl.uiLen);
+    memcpy(pBuf + sizeof(pstHead->stTl), pstHead->pcValue, pstHead->stTl.len);
     return uiLen;
 }
 
@@ -107,8 +113,8 @@ static void in_lua_file_move_to(struct flb_in_lua_config *ctx, struct inotify_ev
     struct flb_in_lua_file_info *tmp = NULL;
     struct mk_list *head;
     char buf[4096];
-    uint32_t *len = (uint32_t *)buf;
     int data_len = 0;
+    FILE_HEAD_REQ_S file_head;
 
     mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
@@ -120,17 +126,25 @@ static void in_lua_file_move_to(struct flb_in_lua_config *ctx, struct inotify_ev
     }
 
     if (tmp) {
-        data_len += snprintf(&buf[5],
-                            4090,
+        data_len += snprintf(buf,
+                            4096,
                             "%s moved in %s, cookie = %d\n",
                             event->name,
                             tmp->file_config.log_directory,
                             event->cookie);
         buf[data_len] = '\0';
-        *len = htonl(data_len - 4);
-        *(char *)(len + 1) = COMMAND_FILE;
-        //in_lua_data_write(buf, data_len);
-        //todo write data to buf
+        file_head.len = htonl(data_len);
+
+        data_len = data_encode(COMMAND_FILE,
+                               &file_head,
+                               sizeof(file_head),
+                               buf,
+                               data_len,
+                               ctx->buf + ctx->read_len,
+                               ctx->buf_len - ctx->read_len);
+        if (data_len > 0) {
+            ctx->read_len += data_len;
+        }
     }
     return;
 }
@@ -141,8 +155,8 @@ static void in_lua_file_move_from(struct flb_in_lua_config *ctx, struct inotify_
     struct flb_in_lua_file_info *tmp = NULL;
     struct mk_list *head;
     char buf[4096];
-    uint32_t *len = (uint32_t *)buf;
-    uint32_t data_len = 5;
+    uint32_t data_len = 0;
+    FILE_HEAD_REQ_S file_head;
 
     mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
@@ -159,16 +173,25 @@ static void in_lua_file_move_from(struct flb_in_lua_config *ctx, struct inotify_
         }
     }
     if (tmp) {
-        data_len += snprintf(&buf[5],
-                             4090,
+        data_len += snprintf(buf,
+                             4096,
                              "%s moved from %s, cookie = %d\n",
                              event->name,
                              tmp->file_config.log_directory,
                              event->cookie);
         buf[data_len] = '\0';
-        *len = htonl(data_len - 4);
-        *(char *)(len + 1) = COMMAND_FILE;
-        //in_lua_data_write(buf, data_len);
+        file_head.len = htonl(data_len);
+
+        data_len = data_encode(COMMAND_FILE,
+                               &file_head,
+                               sizeof(file_head),
+                               buf,
+                               data_len,
+                               ctx->buf + ctx->read_len,
+                               ctx->buf_len - ctx->read_len);
+        if (data_len > 0) {
+            ctx->read_len += data_len;
+        }
     }
     return;
 }
@@ -178,8 +201,8 @@ static void in_lua_file_create(struct flb_in_lua_config *ctx, struct inotify_eve
     struct flb_in_lua_file_info *tmp = NULL;
     struct mk_list *head;
     char buf[4096];
-    uint32_t data_len = 5;
-    uint32_t *len = (uint32_t *)buf;
+    uint32_t data_len = 0;
+    FILE_HEAD_REQ_S file_head;
 
     mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
@@ -192,15 +215,24 @@ static void in_lua_file_create(struct flb_in_lua_config *ctx, struct inotify_eve
     }
 
     if (tmp) {
-        data_len += snprintf(&buf[5],
-                             4090,
+        data_len += snprintf(buf,
+                             4096,
                              "%s create in %s.\n",
                              event->name,
                              tmp->file_config.log_directory);
         buf[data_len] = '\0';
-        *len = htonl(data_len - 4);
-        *(char *)(len + 1) = COMMAND_FILE;
-        //todo write to buf
+        file_head.len = htonl(data_len);
+
+        data_len = data_encode(COMMAND_FILE,
+                               &file_head,
+                               sizeof(file_head),
+                               buf,
+                               data_len,
+                               ctx->buf + ctx->read_len,
+                               ctx->buf_len - ctx->read_len);
+        if (data_len > 0) {
+            ctx->read_len += data_len;
+        }
     }
 
     return;
@@ -212,7 +244,7 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
     struct mk_list *head;
     char buf[4096];
     uint32_t data_len = 5;
-    uint32_t *len = (uint32_t *)buf;
+    FILE_HEAD_REQ_S file_head;
 
     mk_list_foreach(head, &ctx->file_config) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
@@ -231,15 +263,24 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
     }
 
     if (tmp) {
-        data_len += snprintf(&buf[5],
-                             4090,
+        data_len += snprintf(buf,
+                             4096,
                              "%s delete from %s.\n",
                              event->name,
                              tmp->file_config.log_directory);
         buf[data_len] = '\0';
-        *len = htonl(data_len - 4);
-        *(char *)(len + 1) = COMMAND_FILE;
-        //in_lua_data_write(buf, data_len);
+        file_head.len = htonl(data_len);
+
+        data_len = data_encode(COMMAND_FILE,
+                               &file_head,
+                               sizeof(file_head),
+                               buf,
+                               data_len,
+                               ctx->buf + ctx->read_len,
+                               ctx->buf_len - ctx->read_len);
+        if (data_len > 0) {
+            ctx->read_len += data_len;
+        }
     }
 
     return;
@@ -322,34 +363,49 @@ int in_lua_read_event(void *data) {
     return 0;
 }
 
-int file_open_behave(int fd, int offset, int stream_id, int sub_stream_id, const char *file_name)
+int file_open_behave(struct flb_in_lua_file_info *file, int stream_id, int sub_stream_id, const char *file_name)
 {
     //printf("file_open_behave.\r\n");
-    int iRecv = -1;
-    char szBuf[4096];
+    int len = -1;
     COMMAND_OPEN_REQ_S stReq;
     struct stat stFileStat;
-    fstat(fd, &stFileStat);
+    struct flb_in_lua_config *ctx = file->event.data;
+    fstat(file->file_fd, &stFileStat);
 
     stReq.create_timestamp = htonl(stFileStat.st_ctime);
     stReq.modify_timestamp = htonl(stFileStat.st_mtime);
     stReq.group = htonl(stFileStat.st_gid);
     stReq.owner = htonl(stFileStat.st_uid);
     stReq.mod = htonl(stFileStat.st_mode);
-    stReq.offset = htonl(offset);
+    stReq.offset = htonl(file->offset);
     stReq.stream_id = htonl(stream_id);
     stReq.substream_id = htonl(sub_stream_id);
     stReq.tlv_len = 0;
     stReq.filename_len = htons(strlen(file_name));
 
-    iRecv = data_encode(COMMAND_STREAM_START, &stReq, sizeof(stReq), (void *)file_name, ntohs(stReq.filename_len), szBuf, 4096);
+    len = data_encode(COMMAND_STREAM_START,
+                        &stReq,
+                        sizeof(stReq),
+                        (void *)file_name,
+                        ntohs(stReq.filename_len),
+                        ctx->buf + ctx->buf_len,
+                        ctx->buf_len - ctx->read_len);
+
+    if (len > 0) {
+        ctx->read_len += len;
+    }
 
     return 0;
 }
 
 
-int in_lua_file_open(char *path, uint32_t offset)
+int in_lua_file_open(struct flb_in_lua_file_info *file)
 {
+    char path[4096];
+    int len = 0;
+
+    len = snprintf(path, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
+    path[len] = '\0';
     int fd = open(path, O_RDONLY);
     if (fd < 0)
     {
@@ -357,12 +413,14 @@ int in_lua_file_open(char *path, uint32_t offset)
         return -1;
     }
 
-    if (offset > 0)
+    if (file->offset > 0)
     {
-        lseek(fd, offset, SEEK_SET);
+        lseek(fd, file->offset, SEEK_SET);
     }
 
-    file_open_behave(fd, offset, fd, 0, path);
+    file->file_fd = fd;
+
+    file_open_behave(file, fd, 0, path);
 
     return fd;
 }
@@ -371,25 +429,29 @@ int in_lua_file_read(void *data) {
     struct flb_in_lua_file_info *file = data;
     struct flb_in_lua_config *ctx = file->event.data;
 
-    struct mk_list *head;
     static int current_fd = -1;
     uint32_t real_data_len = 0;
     char *pc_current = NULL;
     lua_State *L = ctx->lua_state;
     const char *res = NULL;
-    static char type = DATA_PACK;
     int read_len;
-    char buf[8192];
-    read_len = ctx->buf_len  - ctx->read_len;
-    if (read_len > 8192){
-        read_len = 8192;
+    char buf[MAX_DATA_LEN];
+    DATA_HEAD_REQ_S data_head;
+    struct timeval now;
+    int buf_len;
+
+
+
+    buf_len = ctx->buf_len  - ctx->read_len;
+    if (buf_len > MAX_DATA_LEN){
+        buf_len = MAX_DATA_LEN;
     }
 
 
-    read_len = read(file->file_fd, buf, read_len);
+    read_len = read(file->file_fd, buf, buf_len);
     if (read_len > 0){
         if (current_fd != file->file_fd){
-            file_stream_behave(file->file_fd);
+            file_stream_behave(file);
         }
         pc_current = buf + read_len - 1;
         for ( ; pc_current >= buf; --pc_current)
@@ -406,18 +468,32 @@ int in_lua_file_read(void *data) {
         }
 
         if (real_data_len == 0) {
-            file->offset += read_len;
+            real_data_len = read_len;
         }
-        else {
-            file->offset += real_data_len;
-        }
+        file->offset += real_data_len;
 
         lua_getglobal(L, "process");
         lua_pushlstring(L, buf, real_data_len);
         lua_pcall(L, 1, 1, 0);
         res = lua_tostring(L, -1);
+        read_len = lua_tonumber(L, -2);
+
 
         //todo 填充到buf
+        gettimeofday(&now, NULL);
+        data_head.offset = htonll(file->offset);
+        data_head.time = htonll(now.tv_sec);
+        data_head.len = htonl(read_len);
+        read_len = data_encode(DATA_PACK,
+                               &data_head,
+                               sizeof(data_head),
+                               (char *)res,
+                               read_len,
+                               ctx->buf + ctx->read_len,
+                               ctx->buf_len - ctx->read_len);
+        if (read_len > 0) {
+            ctx->read_len += read_len;
+        }
 
     }
     else {
@@ -491,12 +567,10 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
             //与路径整合
             len = snprintf(file_name, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
             file_name[len] = '\0';
-            //TODO:获取对应的meta信息
-            file->offset = 0;
             //打开文件
-            file_fd = in_lua_file_open(file_name, file->offset);
-
-            file->file_fd = file_fd;
+            if (-1 == in_lua_file_open(file)) {
+                continue;
+            }
 
             in_lua_add_event(ctx, file);
             mk_event_add(ctx->evl, file_fd, MK_EVENT_CUSTOM, MK_EVENT_READ, &file);
@@ -506,19 +580,26 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
 
 int file_stream_begin_behave(unsigned char ucType, struct flb_in_lua_file_info *file)
 {
-    //printf("file_stream_begin_behave. type = %d\r\n", ucType);
     int iRecv = -1;
     //unsigned int uiCurrentTime = LIMIT_GetCurrentTime();
-    char szBuf[4096];
+    struct flb_in_lua_config *ctx = (struct flb_in_lua_config *)file->event.data;
     COMMAND_STREAM_REQ_S stReq;
 
     stReq.stream_id = htonl(file->file_fd);
     stReq.tlv_len = 0;
 
-    iRecv = data_encode(ucType, &stReq, sizeof(stReq), NULL, 0, szBuf, 4096);
+    iRecv = data_encode(ucType,
+                        &stReq,
+                        sizeof(stReq),
+                        NULL,
+                        0,
+                        ctx->buf + ctx->read_len,
+                        ctx->buf_len - ctx->read_len);
 
     //LIMIT_CheckCPULimit(uiCurrentTime, LIMIT_GetCurrentTime());
-    //todo 写buf;
+    if (iRecv > 0) {
+        ctx->read_len += iRecv;
+    }
 
     return 0;
 }
@@ -547,7 +628,7 @@ void in_lua_file_rescan(struct flb_in_lua_config *ctx) {
                 }
                 entry->offset = 0;
 
-                fd = in_lua_file_open(entry->file_name, 0);
+                fd = in_lua_file_open(entry);
 
                 entry->file_fd = fd;
                 in_lua_add_event(ctx, entry);

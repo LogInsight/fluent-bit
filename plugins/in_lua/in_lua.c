@@ -35,16 +35,6 @@
 #include "in_lua_config.h"
 #include "in_lua_file.h"
 
-void in_lua_get_data(struct flb_in_lua_config *ctx)
-{
-    in_lua_file_init(ctx);
-
-    //创建epoll
-    //int epoll_fd = epoll_create()
-
-}
-
-
 /* Cleanup lua input */
 int in_lua_exit(void *in_context, struct flb_config *config)
 {
@@ -113,7 +103,6 @@ static void in_lua_ctx_init(struct flb_in_lua_config *ctx) {
 /* Initialize plugin */
 int in_lua_init(struct flb_config *config)
 {
-    int fd;
     int ret;
     struct flb_in_lua_config *ctx;
 
@@ -166,7 +155,6 @@ int in_lua_init(struct flb_config *config)
 
 int in_lua_collect(struct flb_config *config, void *in_context)
 {
-    int bytes;
     static uint64_t all_time_record = 0;
 
     //char *pack;
@@ -199,6 +187,8 @@ void *in_lua_flush(void *in_context, int *size)
     buf = malloc(ctx->read_len);
     if (!buf)
         return NULL;
+
+    *size = ctx->read_len;
 
     memcpy(buf, ctx->buf, ctx->read_len);
     return buf;
