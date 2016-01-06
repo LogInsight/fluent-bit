@@ -50,7 +50,7 @@ bool pack_command_stream_start(struct command_stream_start_req_head *head,
     *(pack_type_t *) data = type;
     ret_len += sizeof(type);
 
-    //proto_stream_start_req_hton(head);
+    proto_stream_start_req_hton(head);
     if (ret_len + sizeof(*head) > len) {
         return false;
     }
@@ -77,8 +77,7 @@ bool pack_command_stream_end(struct command_stream_end_req_head *head,
     *(pack_type_t *) data = type;
     ret_len += sizeof(type);
 
-    //proto_stream_end_req_hton(head);
-
+    proto_stream_end_req_hton(head);
     if (ret_len + sizeof(*head) > len) {
         return false;
     }
@@ -102,7 +101,7 @@ bool pack_command_stream(struct command_stream_req_head *head,
     *(pack_type_t *) data = type;
     ret_len += sizeof(type);
 
-    //proto_stream_req_hton(head);
+    proto_stream_req_hton(head);
     if (ret_len + sizeof(*head) > len) {
         return false;
     }
@@ -126,7 +125,7 @@ bool pack_command_substream(struct command_substream_req_head *head,
     *(pack_type_t *) data = type;
     ret_len += sizeof(type);
 
-    //proto_substream_req_hton(head);
+    proto_substream_req_hton(head);
     if (ret_len + sizeof(*head) > len) {
         return false;
     }
@@ -151,9 +150,9 @@ bool pack_command_file(const char *command_line, size_t line_size,
     ret_len += sizeof(type);
 
     struct command_file_req_head head;
+    struct command_file_req_head *tmp = &head;
     head.file_command_len = (uint16_t) line_size;
-    //proto_file_req_hton(&head);
-
+    proto_file_req_hton(tmp);
     if (ret_len + sizeof(head) > len) {
         return false;
     }
@@ -197,7 +196,7 @@ bool pack_command_stream_info(command_stream_info_req_head *head, char* data, si
     *(pack_type_t *) data = type;
     ret_len += sizeof(type);
 
-    //proto_stream_info_req_hton(head);
+    proto_stream_info_req_hton(head);
     if (ret_len + sizeof(*head) > len) {
         return false;
     }
