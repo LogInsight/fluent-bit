@@ -99,19 +99,26 @@ typedef struct command_stream_res_head {
 
 typedef struct tag_data_head_s
 {
-    unsigned int uiDataLen;
+    unsigned int len;
+    uint64_t offset;
+    uint64_t time;
 }DATA_HEAD_REQ_S;
 
 typedef struct tag_data_head_res_s
 {
-    unsigned short usStatus;
+    unsigned short status;
 }DATA_HEAD_RES_S;
+
+
+typedef struct tag_file_head_req_s {
+    uint32_t len;
+}FILE_HEAD_REQ_S;
 
 
 typedef struct tag_tl_head_s
 {
-    unsigned int uiType;
-    unsigned int uiLen;
+    unsigned int type;
+    unsigned int len;
 }TL_HEAD_S;
 
 typedef struct tag_tlv_head_s
@@ -158,4 +165,32 @@ int data_encode(unsigned char ucType,
 
 void in_lua_file_init(struct flb_in_lua_config *ctx);
 void in_lua_file_rescan(struct flb_in_lua_config *ctx);
+
+
+unsigned long long static inline ntohll(unsigned long long val)
+{
+    if (__BYTE_ORDER == __LITTLE_ENDIAN)
+    {
+        return (((unsigned long long )htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+    }
+    else if (__BYTE_ORDER == __BIG_ENDIAN)
+    {
+        return val;
+    }
+    return 0;
+}
+
+unsigned long long static inline htonll(unsigned long long val)
+{
+    if (__BYTE_ORDER == __LITTLE_ENDIAN)
+    {
+        return (((unsigned long long )htonl((int)((val << 32) >> 32))) << 32) | (unsigned int)htonl((int)(val >> 32));
+    }
+    else if (__BYTE_ORDER == __BIG_ENDIAN)
+    {
+        return val;
+    }
+}
+
+
 #endif //FLUENT_BIT_IN_LUA_FILE_H

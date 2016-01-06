@@ -181,6 +181,7 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
 
         in_lua_get_file(ctx, file);
         mk_list_add(&file->_head, &ctx->file_config);
+        file->event.data = ctx;
     }
 
     return;
