@@ -90,32 +90,33 @@ unsigned long long static inline htonll(unsigned long long val)
         //body: [streamid] [tlv]
     };
 
-    void inline proto_connect_req_hton(struct command_connect_req_head *head) {
-        head->version = htonl(head->version);
-        head->userid = htonl(head->userid);
-        head->host = htonl(head->host);
-        head->tlv_len = htonl(head->tlv_len);
-    }
+#define proto_connect_req_hton(head) { \
+    head->version = htonl(head->version); \
+    head->userid = htonl(head->userid); \
+    head->host = htonl(head->host); \
+    head->tlv_len = htonl(head->tlv_len); \
+}
 
-    void inline proto_connect_req_ntoh(struct command_connect_req_head *head) {
-        head->version = ntohl(head->version);
-        head->userid = ntohl(head->userid);
-        head->tlv_len = ntohl(head->tlv_len);
-    }
+#define proto_connect_req_ntoh(head) { \
+    head->version = ntohl(head->version); \
+    head->userid = ntohl(head->userid); \
+    head->tlv_len = ntohl(head->tlv_len); \
+}
 
-    void inline proto_connect_res_hton(struct command_connect_res_head *head) {
-        head->status = htons(head->status);
-        head->sessionid = htonll(head->sessionid);
-        head->stream_count = htons(head->stream_count);
-        head->tlv_len = htonl(head->tlv_len);
-    }
+#define proto_connect_res_hton(head) { \
+    head->status = htons(head->status); \
+    head->sessionid = htonll(head->sessionid); \
+    head->stream_count = htons(head->stream_count); \
+    head->tlv_len = htonl(head->tlv_len); \
+}
 
-    void inline proto_connect_res_ntoh(struct command_connect_res_head *head) {
-        head->status = ntohs(head->status);
-        head->sessionid = ntohll(head->sessionid);
-        head->stream_count = ntohs(head->stream_count);
-        head->tlv_len = ntohl(head->tlv_len);
-    }
+#define proto_connect_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+    head->sessionid = ntohll(head->sessionid); \
+    head->stream_count = ntohs(head->stream_count); \
+    head->tlv_len = ntohl(head->tlv_len); \
+}
+
 ////////////////////////////////////////////////////
 
 
@@ -128,21 +129,13 @@ unsigned long long static inline htonll(unsigned long long val)
         uint16_t status;
     };
 
-    void inline proto_close_req_hton(struct command_close_req_head *head) {
-        (void) head;
-    }
+#define proto_close_res_hton(head) { \
+    head->status = htons(head->status); \
+}
 
-    void inline proto_close_req_ntoh(struct command_close_req_head *head) {
-        (void) head;
-    }
-
-    void inline proto_close_res_hton(struct command_close_res_head *head) {
-        head->status = htons(head->status);
-    }
-
-    void inline proto_close_res_ntoh(struct command_close_res_head *head) {
-        head->status = ntohs(head->status);
-    }
+#define proto_close_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+}
 ////////////////////////////////////////////////////
 
 
@@ -166,39 +159,40 @@ unsigned long long static inline htonll(unsigned long long val)
         uint16_t status;
     };
 
-    void inline proto_stream_start_req_hton(struct command_stream_start_req_head *head) {
-        head->stream_id = htonl(head->stream_id);
-        head->substream_id = htonl(head->substream_id);
-        head->create_timestamp = htonll(head->create_timestamp);
-        head->modify_timestamp = htonll(head->modify_timestamp);
-        head->owner = htonl(head->owner);
-        head->group = htonl(head->mod);
-        head->mod = htonl(head->mod);
-        head->offset = htonll(head->offset);
-        head->filename_len = htons(head->filename_len);
-        head->tlv_len = htonl(head->tlv_len);
-    }
+#define proto_stream_start_req_hton(head) { \
+    head->stream_id = htonl(head->stream_id); \
+    head->substream_id = htonl(head->substream_id); \
+    head->create_timestamp = htonll(head->create_timestamp); \
+    head->modify_timestamp = htonll(head->modify_timestamp); \
+    head->owner = htonl(head->owner); \
+    head->group = htonl(head->mod); \
+    head->mod = htonl(head->mod); \
+    head->offset = htonll(head->offset); \
+    head->filename_len = htons(head->filename_len); \
+    head->tlv_len = htonl(head->tlv_len); \
+}
 
-    void inline proto_stream_start_req_ntoh(struct command_stream_start_req_head *head) {
-        head->stream_id = ntohl(head->stream_id);
-        head->substream_id = ntohl(head->substream_id);
-        head->create_timestamp = ntohll(head->create_timestamp);
-        head->modify_timestamp = ntohll(head->modify_timestamp);
-        head->owner = ntohl(head->owner);
-        head->group = ntohl(head->mod);
-        head->mod = ntohl(head->mod);
-        head->offset = ntohll(head->offset);
-        head->filename_len = ntohs(head->filename_len);
-        head->tlv_len = ntohl(head->tlv_len);
-    }
+#define proto_stream_start_req_ntoh(head) { \
+    head->stream_id = ntohl(head->stream_id); \
+    head->substream_id = ntohl(head->substream_id); \
+    head->create_timestamp = ntohll(head->create_timestamp); \
+    head->modify_timestamp = ntohll(head->modify_timestamp); \
+    head->owner = ntohl(head->owner); \
+    head->group = ntohl(head->mod); \
+    head->mod = ntohl(head->mod); \
+    head->offset = ntohll(head->offset); \
+    head->filename_len = ntohs(head->filename_len); \
+    head->tlv_len = ntohl(head->tlv_len); \
+}
 
-    void inline proto_stream_start_res_hton(struct command_stream_start_res_head *head) {
-        head->status = htons(head->status);
-    }
+#define proto_stream_start_res_hton(head) { \
+    head->status = htons(head->status); \
+}
 
-    void inline proto_stream_start_res_ntoh(struct command_stream_start_res_head *head) {
-        head->status = ntohs(head->status);
-    }
+#define proto_stream_start_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+}
+
 ////////////////////////////////////////////////////
 
 //command: stream_end
@@ -211,21 +205,21 @@ unsigned long long static inline htonll(unsigned long long val)
         char md5[128];
     };
 
-    void inline proto_stream_end_req_hton(struct command_stream_end_req_head *head) {
-        head->stream_id = htonl(head->stream_id);
-    }
+#define proto_stream_end_req_hton(head) { \
+    head->stream_id = htonl(head->stream_id); \
+}
 
-    void inline proto_stream_end_req_ntoh(struct command_stream_end_req_head *head) {
-        head->stream_id = ntohl(head->stream_id);
-    }
+#define proto_stream_end_req_ntoh(head) { \
+    head->stream_id = ntohl(head->stream_id); \
+}
 
-    void inline proto_stream_end_res_hton(struct command_stream_end_res_head *head) {
-        head->status = htons(head->status);
-    }
+#define proto_stream_end_res_hton(head) { \
+    head->status = htons(head->status); \
+}
 
-    void inline proto_stream_end_res_ntoh(struct command_stream_end_res_head *head) {
-        head->status = ntohs(head->status);
-    }
+#define proto_stream_end_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+}
 ////////////////////////////////////////////////////
 
 //command: stream
@@ -238,21 +232,21 @@ unsigned long long static inline htonll(unsigned long long val)
         uint16_t status;
     };
 
-    void inline proto_stream_req_hton(struct command_stream_req_head *head) {
-        head->stream_id = htonl(head->stream_id);
-    }
+#define proto_stream_req_hton(head) { \
+    head->stream_id = htonl(head->stream_id); \
+}
 
-    void inline proto_stream_req_ntoh(struct command_stream_req_head *head) {
-        head->stream_id = ntohl(head->stream_id);
-    }
+#define proto_stream_req_ntoh(head) { \
+    head->stream_id = ntohl(head->stream_id); \
+}
 
-    void inline proto_stream_res_hton(struct command_stream_res_head *head) {
-        head->status = htons(head->status);
-    }
+#define proto_stream_res_hton(head) { \
+    head->status = htons(head->status); \
+}
 
-    void inline proto_stream_res_ntoh(struct command_stream_res_head *head) {
-        head->status = ntohs(head->status);
-    }
+#define proto_stream_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+}
 ////////////////////////////////////////////////////
 
 
@@ -266,21 +260,21 @@ unsigned long long static inline htonll(unsigned long long val)
         uint16_t status;
     };
 
-    void inline proto_substream_req_hton(struct command_substream_req_head *head) {
-        head->substreamid = htonl(head->substreamid);
-    }
+#define proto_substream_req_hton(head) { \
+    head->substreamid = htonl(head->substreamid); \
+}
 
-    void inline proto_substream_req_ntoh(struct command_substream_req_head *head) {
-        head->substreamid = ntohl(head->substreamid);
-    }
+#define proto_substream_req_ntoh(head) { \
+    head->substreamid = ntohl(head->substreamid); \
+}
 
-    void inline proto_substream_res_hton(struct command_substream_res_head *head) {
-        head->status = htons(head->status);
-    }
+#define proto_substream_res_hton(head) { \
+    head->status = htons(head->status); \
+}
 
-    void inline proto_substream_res_ntoh(struct command_substream_res_head *head) {
-        head->status = ntohs(head->status);
-    }
+#define proto_substream_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+}
 ////////////////////////////////////////////////////
 
 //command: file
@@ -290,13 +284,13 @@ unsigned long long static inline htonll(unsigned long long val)
 
     typedef struct command_substream_res_head command_file_res_head;
 
-    void inline proto_file_req_hton(struct command_file_req_head *head) {
-        head->file_command_len = htons(head->file_command_len);
-    }
+#define proto_file_req_hton(head) { \
+    head->file_command_len = htons(head->file_command_len); \
+}
 
-    void inline proto_file_req_ntoh(struct command_file_req_head *head) {
-        head->file_command_len = ntohs(head->file_command_len);
-    }
+#define proto_file_req_ntoh(head) { \
+    head->file_command_len = ntohs(head->file_command_len); \
+}
 ////////////////////////////////////////////////////
 
 //command: data_pack
@@ -308,20 +302,21 @@ unsigned long long static inline htonll(unsigned long long val)
         uint16_t status;
     };
 
-    void inline proto_data_req_hton(struct data_pack_req_head *head) {
-        head->length = htonl(head->length);
-    }
+#define proto_data_req_hton(head) { \
+    head->length = htonl(head->length); \
+}
 
-    void inline proto_data_req_ntoh(struct data_pack_req_head *head) {
-        head->length = ntohl(head->length);
-    }
+#define proto_data_req_ntoh(head) { \
+    head->length = ntohl(head->length); \
+}
 
-    void inline proto_data_res_hton(struct data_pack_res_head *head) {
-        head->status = htons(head->status);
-    }
-    void inline proto_data_res_ntoh(struct data_pack_res_head *head) {
-        head->status = ntohs(head->status);
-    }
+#define proto_data_res_hton(head) { \
+    head->status = htons(head->status); \
+}
+
+#define proto_data_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+}
 ////////////////////////////////////////////////////
 
 
@@ -342,33 +337,33 @@ unsigned long long static inline htonll(unsigned long long val)
         //body: [filename] [tlv]
     };
 
-    void inline proto_stream_info_req_hton(command_stream_info_req_head *head) {
-        head->status = htons(head->status);
-        head->stream_id = htonl(head->stream_id);
-        head->substream_id = htonl(head->substream_id);
-        head->create_timestamp = htonll(head->create_timestamp);
-        head->modify_timestamp = htonll(head->modify_timestamp);
-        head->owner = htonl(head->owner);
-        head->group = htonl(head->mod);
-        head->mod = htonl(head->mod);
-        head->offset = htonll(head->offset);
-        head->filename_len = htons(head->filename_len);
-        head->tlv_len = htonl(head->tlv_len);
-    }
+#define proto_stream_info_req_hton(head) { \
+    head->status = htons(head->status); \
+    head->stream_id = htonl(head->stream_id); \
+    head->substream_id = htonl(head->substream_id); \
+    head->create_timestamp = htonll(head->create_timestamp); \
+    head->modify_timestamp = htonll(head->modify_timestamp); \
+    head->owner = htonl(head->owner); \
+    head->group = htonl(head->mod); \
+    head->mod = htonl(head->mod); \
+    head->offset = htonll(head->offset); \
+    head->filename_len = htons(head->filename_len); \
+    head->tlv_len = htonl(head->tlv_len); \
+}
 
-    void inline proto_stream_info_res_ntoh(struct command_stream_info_res_head *head) {
-        head->status = ntohs(head->status);
-        head->stream_id = ntohl(head->stream_id);
-        head->substream_id = ntohl(head->substream_id);
-        head->create_timestamp = ntohll(head->create_timestamp);
-        head->modify_timestamp = ntohll(head->modify_timestamp);
-        head->owner = ntohl(head->owner);
-        head->group = ntohl(head->mod);
-        head->mod = ntohl(head->mod);
-        head->offset = ntohll(head->offset);
-        head->filename_len = ntohs(head->filename_len);
-        head->tlv_len = ntohl(head->tlv_len);
-    }
+#define proto_stream_info_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
+    head->stream_id = ntohl(head->stream_id); \
+    head->substream_id = ntohl(head->substream_id); \
+    head->create_timestamp = ntohll(head->create_timestamp); \
+    head->modify_timestamp = ntohll(head->modify_timestamp); \
+    head->owner = ntohl(head->owner); \
+    head->group = ntohl(head->mod); \
+    head->mod = ntohl(head->mod); \
+    head->offset = ntohll(head->offset); \
+    head->filename_len = ntohs(head->filename_len); \
+    head->tlv_len = ntohl(head->tlv_len); \
+}
 ////////////////////////////////////////////////////
 
 #pragma pack()

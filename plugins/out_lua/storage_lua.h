@@ -7,6 +7,8 @@
 
 #include "storage_lua_meta.h"
 
+extern const size_t send_buf_size;
+
 struct flb_out_lua_config {
     struct flb_io_upstream *stream;
     struct meta_list m_list;

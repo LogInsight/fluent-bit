@@ -5,15 +5,19 @@
 #include "storage_lua.h"
 #include <msgpack.h>
 #include <stdio.h>
+#include "storage_pack.h"
 #include "storage_command.h"
 #include "storage_lua_meta.h"
 
 #include <fluent-bit/flb_utils.h>
 #include <fluent-bit/flb_io.h>
 
-static const size_t send_buf_size = 1024 * 1024;
+const size_t send_buf_size = 1024 * 1024;
 
 struct flb_output_plugin out_lua_plugin;
+
+#define SERVPORT 11110
+#define SERVER_IP "192.168.200.227"
 
 int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
 {
@@ -30,10 +34,10 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
 
     /* Set default network configuration */
     if (!plugin->net_host) {
-        plugin->net_host = strdup("192.168.10.175");
+        plugin->net_host = strdup(SERVER_IP);
     }
     if (plugin->net_port == 0) {
-        plugin->net_port = 11110;
+        plugin->net_port = SERVPORT;
     }
 
     /* Prepare an upstream handler */
@@ -53,7 +57,8 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
     }
 
     lua_meta_init(&ctx->m_list);
-    ctx->buf = malloc(1024 * 1024);
+    ctx->buf = malloc(send_buf_size);
+    ctx->buf_len = send_buf_size;
 
     struct command_connect_req_head req_head;
     memset (&req_head, 0 , sizeof(req_head));
@@ -61,26 +66,17 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
     req_head.host = 0;
     req_head.version = 1;
     req_head.tlv_len = 0;
-
-    size_t buf_len = send_buf_size - 4;
-    size_t req_len = 0;
-    pack_command_connect(&req_head, ctx->buf + 4, buf_len, &req_len);
-    uint32_t pack_len = req_len;
-    pack_len = ntohl(pack_len);
-    memcpy(ctx->buf, (const void *)&pack_len, sizeof(uint32_t));
-    ctx->buf_len = req_len + 4;
-
-    size_t out_len = 0;
-
-    flb_io_net_write(ctx->stream, ctx->buf, ctx->buf_len, &out_len);
+    storage_process_connect(ctx, &req_head);
     return 0;
 }
 
 int cb_lua_exit(void *data, struct flb_config *config)
 {
+    flb_info("call cb_lua_exit");
     (void) config;
     struct flb_out_lua_config *ctx = data;
     lua_meta_destory(&ctx->m_list);
+    storage_process_connect_close(ctx);
     free(ctx);
 
     return 0;
