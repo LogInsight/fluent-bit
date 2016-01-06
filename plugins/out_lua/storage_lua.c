@@ -5,12 +5,19 @@
 #include "storage_lua.h"
 #include <msgpack.h>
 #include <stdio.h>
+#include "storage_pack.h"
+#include "storage_command.h"
+#include "storage_lua_meta.h"
 
 #include <fluent-bit/flb_utils.h>
 #include <fluent-bit/flb_io.h>
 
+const size_t send_buf_size = 1024 * 1024;
 
 struct flb_output_plugin out_lua_plugin;
+
+#define SERVPORT 11110
+#define SERVER_IP "192.168.200.227"
 
 int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
 {
@@ -27,10 +34,10 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
 
     /* Set default network configuration */
     if (!plugin->net_host) {
-        plugin->net_host = strdup("127.0.0.1");
+        plugin->net_host = strdup(SERVER_IP);
     }
     if (plugin->net_port == 0) {
-        plugin->net_port = 12800;
+        plugin->net_port = SERVPORT;
     }
 
     /* Prepare an upstream handler */
@@ -49,13 +56,27 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config)
         flb_utils_error_c("Could not set configuration for lua output plugin");
     }
 
+    lua_meta_init(&ctx->m_list);
+    ctx->buf = malloc(send_buf_size);
+    ctx->buf_len = send_buf_size;
+
+    struct command_connect_req_head req_head;
+    memset (&req_head, 0 , sizeof(req_head));
+    req_head.userid = 10;
+    req_head.host = 0;
+    req_head.version = 1;
+    req_head.tlv_len = 0;
+    storage_process_connect(ctx, &req_head);
     return 0;
 }
 
 int cb_lua_exit(void *data, struct flb_config *config)
 {
+    flb_info("call cb_lua_exit");
     (void) config;
     struct flb_out_lua_config *ctx = data;
+    lua_meta_destory(&ctx->m_list);
+    storage_process_connect_close(ctx);
     free(ctx);
 
     return 0;
@@ -76,7 +97,7 @@ int cb_lua_flush(void *data, size_t bytes, void *out_context,
     msgpack_unpacked result;
     struct flb_out_lua_config *ctx = out_context;
     (void) config;
-    //printf("the flush data = %s\n", (char *)data);
+    printf("the flush data = %.*s\n", (int) bytes, (char *)data);
 
     return ret;
 }

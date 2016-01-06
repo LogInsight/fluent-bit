@@ -31,6 +31,8 @@
 
 #include "in_stdin.h"
 
+#define STORAGE_DEBUG 1
+
 /* Initialize plugin */
 int in_stdin_init(struct flb_config *config)
 {
@@ -93,7 +95,8 @@ int in_stdin_collect(struct flb_config *config, void *in_context)
         return -1;
     }
     ctx->buf_len += bytes;
-
+#if STORAGE_DEBUG
+#else
     /* Initially we should support JSON input */
     ret = flb_pack_json(ctx->buf, ctx->buf_len, &pack, &out_size);
     if (ret != 0) {
@@ -121,6 +124,7 @@ int in_stdin_collect(struct flb_config *config, void *in_context)
     msgpack_unpacked_destroy(&result);
 
     free(pack);
+#endif
     return 0;
 }
 
@@ -129,7 +133,14 @@ void *in_stdin_flush(void *in_context, int *size)
     char *buf;
     msgpack_sbuffer *sbuf;
     struct flb_in_stdin_config *ctx = in_context;
-
+#if STORAGE_DEBUG
+    *size = ctx->buf_len;
+    buf = malloc(ctx->buf_len);
+    if (!buf)
+        goto fail;
+    memcpy(buf, ctx->buf, ctx->buf_len);
+    ctx->buf_len = 0;
+#else
     if (ctx->buffer_id == 0)
         goto fail;
 
@@ -146,7 +157,7 @@ void *in_stdin_flush(void *in_context, int *size)
     msgpack_packer_init(&ctx->mp_pck, &ctx->mp_sbuf, msgpack_sbuffer_write);
 
     ctx->buffer_id = 0;
-
+#endif
     return buf;
 
 fail:

@@ -56,6 +56,8 @@
 #include <fluent-bit/flb_engine.h>
 #include <fluent-bit/flb_thread.h>
 
+#define BLOCK_SOCKET 1
+
 /* Creates a new upstream context */
 struct flb_io_upstream *flb_io_upstream_new(struct flb_config *config,
                                             char *host, int port, int flags,
@@ -115,7 +117,9 @@ FLB_INLINE int flb_io_net_connect(struct flb_io_upstream *u,
     u->fd = fd;
 
     /* Make the socket non-blocking */
+#if !BLOCK_SOCKET
     flb_net_socket_nonblocking(u->fd);
+#endif
 
     /* Start the connection */
     ret = flb_net_tcp_fd_connect(fd, u->tcp_host, u->tcp_port);
