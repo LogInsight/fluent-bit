@@ -143,6 +143,7 @@ void in_lua_file_close(struct flb_in_lua_config *ctx, struct flb_in_lua_file_inf
     file->file_fd = -1;
     file->new_file = MK_TRUE;
     file->offset = 0;
+    file->file_name[0] = '\0';
 
 }
 
@@ -414,6 +415,7 @@ static int in_lua_file_event(struct flb_in_lua_config *ctx, int i_watch_fd)
             }
             i_offset += sizeof(struct inotify_event) + pst_inotify_event->len;
         }
+        i_offset = 0;
     }
     //LIMIT_CheckCPULimit(uiCurrentTime, LIMIT_GetCurrentTime());
     return 0;
@@ -676,8 +678,8 @@ void in_lua_file_rescan(struct flb_in_lua_config *ctx) {
                 if (entry->file_fd != -1){
                     in_lua_file_close(ctx, entry);
                 }
-
-                in_lua_file_open(entry, ctx);
+                if (entry->file_name[0] != '\0')
+                    in_lua_file_open(entry, ctx);
                 //in_lua_add_event(ctx, entry);
             }
         }
