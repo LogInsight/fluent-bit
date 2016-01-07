@@ -33,13 +33,13 @@ struct flb_in_lua_stat{
 };
 
 struct flb_in_lua_global{
-    int refresh_interval;
-    int io_limit;
-    int cpu_limit;
-    int mem_size;
+    uint32_t refresh_interval;
+    uint32_t io_limit;
+    uint32_t cpu_limit;
+    uint32_t mem_size;
+    uint32_t access_key;
+    uint32_t host_key;
     char *hostname;
-    char *access_key;
-    char *host_key;
     char *watch_mode;
 };
 

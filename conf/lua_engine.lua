@@ -9,7 +9,7 @@
 
 
 function process(data)
-    return data, #data;
+    return data, #data
 end
 
 

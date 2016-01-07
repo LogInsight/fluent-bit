@@ -78,6 +78,7 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
             luaL_dostring(L, lua_command);
             if (first){
                 second = lua_tostring(L, -1);
+                lua_pop(L, 1);
                 if (second){
                     if (file->file_config.priority) {
                         lua_pushstring(L, first);
@@ -85,6 +86,7 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
                         lua_getglobal(L, file->file_config.priority);
                         lua_pcall(L, 2, 1, 0);
                         first = lua_tostring(L, -1);
+                        lua_pop(L, 1);
                     }
                     else {
                         if (0 > strcmp(second, first)) {
@@ -96,8 +98,7 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
             }
             else {
                 first = lua_tostring(L, -1);
-                int tmp = lua_gettop(L);
-                flb_info("match file = %s,  %d   %d", first, tmp, lua_gettop(L));
+                lua_pop(L, 1);
             }
         }
     }
@@ -184,6 +185,9 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
             }
             else if(0 == strcasecmp(entry->key, "rescan_interval")) {
                 file->file_config.rescan_interval = atoi(entry->val);
+                if (file->file_config.rescan_interval == 0) {
+                    file->file_config.rescan_interval = gst_global_config.refresh_interval;
+                }
             }
             else if(0 == strcasecmp(entry->key, "priority")) {
                 file->file_config.priority = entry->val;
@@ -335,10 +339,10 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 flb_info("lua_execute lua_engine = %s", realpath(ctx->lua_engine, NULL));
             }
             else if (0 == strcasecmp(entry->key, "access_key")){
-                gst_global_config.access_key = entry->val;
+                gst_global_config.access_key = atoi(entry->val);
             }
             else if (0 == strcasecmp(entry->key, "host_key")){
-                gst_global_config.host_key = entry->val;
+                gst_global_config.host_key = atoi(entry->val);
             }
             else if(0 == strcasecmp(entry->key, "io_limit")){
                 tmp = atoi(entry->val);

@@ -115,7 +115,6 @@ int in_lua_init(struct flb_config *config)
 
     struct mk_event event;
 
-    flb_info("call in_lua_init");
 
 
     /* Allocate space for the configuration */
@@ -135,30 +134,21 @@ int in_lua_init(struct flb_config *config)
 
     in_lua_file_init(ctx);
 
-    event.mask = MK_EVENT_EMPTY;
-    event.status = MK_EVENT_NONE;
-
-    ctx->fd = mk_event_timeout_create(ctx->evl, 1, &event);
-    if (ctx->fd == -1) {
-        flb_utils_error_c("Could not open standard input!");
-    }
-
     /* Set the context */
     ret = flb_input_set_context("lua", ctx, config);
     if (ret == -1) {
         flb_utils_error_c("Could not set configuration for lua input plugin");
     }
 
-
     /* Collect upon data available on the standard input */
-    ret = flb_input_set_collector_event("lua",
+    ret = flb_input_set_collector_time("lua",
                                         in_lua_collect,
-                                        ctx->fd,
+                                        1,
+                                        0,
                                         config);
     if (ret == -1) {
         flb_utils_error_c("Could not set collector for lua input plugin");
     }
-
     return 0;
 }
 
@@ -174,9 +164,11 @@ int in_lua_collect(struct flb_config *config, void *in_context)
 
     all_time_record += 1;
 
+
     if (0 == all_time_record % IN_LUA_DEFAULT_RESAN_TIME) {
         in_lua_file_rescan(ctx);
     }
+
 
     mk_list_foreach(head, &ctx->file_config) {
         file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
@@ -199,7 +191,12 @@ int in_lua_collect(struct flb_config *config, void *in_context)
 void *in_lua_flush(void *in_context, int *size)
 {
     char *buf;
+
     struct flb_in_lua_config *ctx = in_context;
+
+    if (ctx->read_len == 0) {
+        return NULL;
+    }
 
     buf = malloc(ctx->read_len);
     if (!buf)
@@ -208,6 +205,7 @@ void *in_lua_flush(void *in_context, int *size)
     *size = ctx->read_len;
 
     memcpy(buf, ctx->buf, ctx->read_len);
+    ctx->read_len = 0;
     return buf;
 }
 /*
