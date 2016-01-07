@@ -64,6 +64,7 @@ int in_lua_exit(void *in_context, struct flb_config *config)
         mk_string_split_free(ctx->lua_paths);
 
     mk_list_foreach_safe(head, next, &ctx->file_config) {
+
         file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         if (file->file_fd != -1) {
             in_lua_file_close(ctx, file);

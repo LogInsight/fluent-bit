@@ -452,7 +452,7 @@ int file_open_behave(struct flb_in_lua_config *ctx,
                         sizeof(stReq),
                         (void *)file_name,
                         ntohs(stReq.filename_len),
-                        ctx->buf + ctx->buf_len,
+                        ctx->buf + ctx->read_len,
                         ctx->buf_len - ctx->read_len);
 
     if (len > 0) {
