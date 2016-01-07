@@ -321,7 +321,7 @@ unsigned long long static inline htonll(unsigned long long val)
 
 
 //command: stream_info
-    typedef struct command_stream_info_res_head command_stream_info_req_head;
+    typedef struct command_stream_req_head command_stream_info_req_head;
     struct command_stream_info_res_head {
         uint16_t status;
         uint32_t stream_id;
@@ -337,7 +337,7 @@ unsigned long long static inline htonll(unsigned long long val)
         //body: [filename] [tlv]
     };
 
-#define proto_stream_info_req_hton(head) { \
+#define proto_stream_info_res_hton(head) { \
     head->status = htons(head->status); \
     head->stream_id = htonl(head->stream_id); \
     head->substream_id = htonl(head->substream_id); \

@@ -84,6 +84,9 @@ int cb_lua_flush(void *data, size_t bytes, void *out_context,
                      struct flb_config *config) {
     flb_info("call out lua flush");
     (void) config;
+    if (data == NULL) {
+        return 0;
+    }
     struct flb_out_fluentd_config *ctx = out_context;
     int ret = -1;
     ret = parse_data_type(ctx, data, bytes);
