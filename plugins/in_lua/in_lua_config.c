@@ -74,7 +74,6 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
         if (ptr->d_type == 8){
             data_len = snprintf(lua_command, 4096, "return ('%s'):match('%s')", ptr->d_name, file->file_config.file_match);
             lua_command[data_len] = '\0';
-            flb_info("do command : %s", lua_command);
             luaL_dostring(L, lua_command);
             if (first){
                 second = lua_tostring(L, -1);

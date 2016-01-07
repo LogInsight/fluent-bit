@@ -46,6 +46,11 @@ int in_lua_exit(void *in_context, struct flb_config *config)
 {
     /* 必须关闭 LUA 虚拟机， 让 LUA 端 可以释放资源 */
     struct flb_in_lua_config *ctx = in_context;
+    struct flb_in_lua_file_info *file;
+    struct flb_in_lua_exec_info *exec;
+    struct flb_in_lua_stat_info *stat;
+    struct mk_list *head;
+
     if(ctx->lua_state) {
         lua_State *L = ctx->lua_state;
 
@@ -56,6 +61,30 @@ int in_lua_exit(void *in_context, struct flb_config *config)
     /* free config->index_files */
     if (ctx->lua_paths)
         mk_string_split_free(ctx->lua_paths);
+
+    mk_list_foreach(head, &ctx->file_config) {
+        file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
+        if (file->file_fd != -1) {
+            in_lua_file_close(ctx, file);
+        }
+        mk_list_del(head);
+        free(file);
+    }
+
+
+    mk_list_foreach(head, &ctx->file_config) {
+        exec = mk_list_entry(head, struct flb_in_lua_exec_info, _head);
+        mk_list_del(head);
+        free(exec);
+    }
+
+
+    mk_list_foreach(head, &ctx->file_config) {
+        stat = mk_list_entry(head, struct flb_in_lua_stat_info, _head);
+        mk_list_del(head);
+        free(stat);
+    }
+
     free(ctx->buf);
     ctx->buf = NULL;
     return 0;
@@ -112,9 +141,6 @@ int in_lua_init(struct flb_config *config)
 {
     int ret;
     struct flb_in_lua_config *ctx;
-
-    struct mk_event event;
-
 
 
     /* Allocate space for the configuration */

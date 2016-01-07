@@ -107,6 +107,42 @@ void in_lua_add_watch(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info
     return;
 }
 
+int file_close_behave(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file)
+{
+    //printf("file_close_behave.\r\n");
+    int iRecv = -1;
+    COMMAND_STREAM_END_REQ_S stReq;
+
+    stReq.stream_id = htonl(file->file_fd);
+    iRecv = data_encode(COMMAND_STREAM_END,
+                        &stReq,
+                        sizeof(stReq),
+                        NULL,
+                        0,
+                        ctx->buf + ctx->read_len,
+                        ctx->buf_len - ctx->read_len);
+
+    if (iRecv > 0) {
+        ctx->read_len += iRecv;
+    }
+
+    return 0;
+}
+
+
+void in_lua_file_close(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file) {
+    if (file->file_fd == -1) {
+        return;
+    }
+
+    file_close_behave(ctx, file);
+    close(file->file_fd);
+    file->file_fd = -1;
+    file->new_file = MK_TRUE;
+    file->offset = 0;
+
+}
+
 //move in
 static void in_lua_file_move_to(struct flb_in_lua_config *ctx, struct inotify_event *event) {
     struct flb_in_lua_file_info *entry;
@@ -149,6 +185,7 @@ static void in_lua_file_move_to(struct flb_in_lua_config *ctx, struct inotify_ev
     return;
 }
 
+
 //move out
 static void in_lua_file_move_from(struct flb_in_lua_config *ctx, struct inotify_event *event) {
     struct flb_in_lua_file_info *entry;
@@ -165,9 +202,7 @@ static void in_lua_file_move_from(struct flb_in_lua_config *ctx, struct inotify_
             tmp = entry;
             if (entry->file_fd != -1  && 0 == strcmp(entry->file_name, event->name))
             {
-                close(entry->file_fd);
-                entry->file_fd = -1;
-                entry->new_file = MK_TRUE;
+                in_lua_file_close(ctx, entry);
                 break;
             }
         }
@@ -251,11 +286,8 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
         if (entry->wfd == event->wd)
         {
             tmp = entry;
-            if (0 == strcmp(entry->file_name, event->name) && entry->file_fd != -1){
-
-                close(entry->file_fd);
-                entry->file_fd = -1;
-                entry->new_file = MK_TRUE;
+            if (0 == strcmp(entry->file_name, event->name)){
+                in_lua_file_close(ctx, entry);
                 break;
             }
         }
@@ -455,6 +487,8 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
     file_open_behave(ctx, file, fd, 0, path);
 
     flb_info("file = %s, fd = %d", path, fd);
+    file->new_file = MK_FALSE;
+    file->offset = 0;
 
     return fd;
 }
@@ -627,14 +661,11 @@ void in_lua_file_rescan(struct flb_in_lua_config *ctx) {
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
 
         if (entry->new_file) {
-            entry->new_file = MK_FALSE;
             in_lua_get_file(ctx, entry);
             if (entry->new_file) {
                 if (entry->file_fd != -1){
-                    close(entry->file_fd);
-                    entry->file_fd = -1;
+                    in_lua_file_close(ctx, entry);
                 }
-                entry->offset = 0;
 
                 in_lua_file_open(entry, ctx);
                 //in_lua_add_event(ctx, entry);
