@@ -25,6 +25,9 @@
 
 static int g_i_inotify_fd= -1;
 
+static uint32_t g_buf_len = 0;
+static char *g_buf = NULL;
+
 #define MAX_DATA_LEN   (64 << 10)
 
 //typedef void (*file_event_callback) (struct flb_in_lua_config, struct flb_in_lua_file_info);
@@ -501,7 +504,6 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
     lua_State *L = ctx->lua_state;
     const char *res = NULL;
     int read_len;
-    char buf[MAX_DATA_LEN];
     DATA_HEAD_REQ_S data_head;
     struct timeval now;
     int buf_len;
@@ -515,22 +517,22 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
 
 
     buf_len = ctx->buf_len  - ctx->read_len;
-    if (buf_len > MAX_DATA_LEN){
-        buf_len = MAX_DATA_LEN;
+    if (buf_len > g_buf_len){
+        buf_len = g_buf_len;
     }
 
 
-    read_len = read(file->file_fd, buf, buf_len);
+    read_len = read(file->file_fd, g_buf, buf_len);
     if (read_len > 0){
         if (current_fd != file->file_fd){
             file_stream_behave(file, ctx);
         }
-        pc_current = buf + read_len - 1;
-        for ( ; pc_current >= buf; --pc_current)
+        pc_current = g_buf + read_len - 1;
+        for ( ; pc_current >= g_buf; --pc_current)
         {
             if (*pc_current == '\n')
             {
-                real_data_len = pc_current - buf + 1;
+                real_data_len = pc_current - g_buf + 1;
                 break;
             }
         }
@@ -543,10 +545,9 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
             real_data_len = read_len;
         }
         file->offset += real_data_len;
-        buf[real_data_len] = '\0';
 
         lua_getglobal(L, "process");
-        lua_pushlstring(L, buf, real_data_len);
+        lua_pushlstring(L, g_buf, real_data_len);
         lua_pcall(L, 1, 2, 0);
         res = lua_tostring(L, -2);
         read_len = lua_tointeger(L, -1);
@@ -576,11 +577,10 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
 {
     char file_name[4096];
     int len = 0;
+    int file_num = 0;
 
     struct flb_in_lua_file_info *file;
-
     struct mk_list *head;
-
     struct mk_event *event;
 
     int ret = 0;
@@ -620,7 +620,17 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
             //打开文件
             in_lua_file_open(file, ctx);
         }
+        file_num ++;
     }
+
+    if (file_num > 0) {
+        g_buf_len = ctx->buf_len / file_num;
+        g_buf = (char *)malloc(g_buf_len);
+        if (NULL == g_buf) {
+            flb_utils_error_c("read buf malloc failed.");
+        }
+    }
+    return;
 }
 
 int file_stream_begin_behave(unsigned char ucType, struct flb_in_lua_file_info *file, struct flb_in_lua_config *ctx)
