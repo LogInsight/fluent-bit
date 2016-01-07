@@ -44,7 +44,6 @@ struct flb_in_lua_global{
 };
 
 struct flb_in_lua_file_info {
-    struct mk_event event;
     struct mk_list _head;
     struct flb_in_lua_file file_config;
     char file_name[1024];

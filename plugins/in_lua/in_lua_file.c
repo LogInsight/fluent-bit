@@ -29,7 +29,7 @@ static int g_i_inotify_fd= -1;
 
 //typedef void (*file_event_callback) (struct flb_in_lua_config, struct flb_in_lua_file_info);
 
-int file_stream_behave(struct flb_in_lua_file_info *file);
+int file_stream_behave(struct flb_in_lua_file_info *file, struct flb_in_lua_config *ctx);
 
 int tlv_encode(TLV_HEAD_S *pstHead, void *pBuf, unsigned int uiBufLen)
 {
@@ -256,7 +256,6 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
                 close(entry->file_fd);
                 entry->file_fd = -1;
                 entry->new_file = MK_TRUE;
-                mk_event_del(ctx->evl, &entry->event);
                 break;
             }
         }
@@ -363,13 +362,16 @@ int in_lua_read_event(void *data) {
     return 0;
 }
 
-int file_open_behave(struct flb_in_lua_file_info *file, int stream_id, int sub_stream_id, const char *file_name)
+int file_open_behave(struct flb_in_lua_config *ctx,
+                     struct flb_in_lua_file_info *file,
+                     int stream_id,
+                     int sub_stream_id,
+                     const char *file_name)
 {
     //printf("file_open_behave.\r\n");
     int len = -1;
     COMMAND_OPEN_REQ_S stReq;
     struct stat stFileStat;
-    struct flb_in_lua_config *ctx = file->event.data;
     fstat(file->file_fd, &stFileStat);
 
     stReq.create_timestamp = htonl(stFileStat.st_ctime);
@@ -399,7 +401,7 @@ int file_open_behave(struct flb_in_lua_file_info *file, int stream_id, int sub_s
 }
 
 
-int in_lua_file_open(struct flb_in_lua_file_info *file)
+int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config *ctx)
 {
     char path[4096];
     int len = 0;
@@ -420,14 +422,14 @@ int in_lua_file_open(struct flb_in_lua_file_info *file)
 
     file->file_fd = fd;
 
-    file_open_behave(file, fd, 0, path);
+    file_open_behave(ctx, file, fd, 0, path);
+
+    flb_info("file = %s, fd = %d", path, fd);
 
     return fd;
 }
 
-int in_lua_file_read(void *data) {
-    struct flb_in_lua_file_info *file = data;
-    struct flb_in_lua_config *ctx = file->event.data;
+int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file) {
 
     static int current_fd = -1;
     uint32_t real_data_len = 0;
@@ -451,7 +453,7 @@ int in_lua_file_read(void *data) {
     read_len = read(file->file_fd, buf, buf_len);
     if (read_len > 0){
         if (current_fd != file->file_fd){
-            file_stream_behave(file);
+            file_stream_behave(file, ctx);
         }
         pc_current = buf + read_len - 1;
         for ( ; pc_current >= buf; --pc_current)
@@ -501,7 +503,7 @@ int in_lua_file_read(void *data) {
     }
     return 0;
 }
-
+/*
 void in_lua_add_event(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file) {
     struct mk_event *event;
 
@@ -520,7 +522,7 @@ void in_lua_add_event(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info
     event->data         = (void *)ctx;
     return;
 }
-
+*/
 void in_lua_file_init(struct flb_in_lua_config *ctx)
 {
     char file_name[4096];
@@ -568,21 +570,15 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
             len = snprintf(file_name, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
             file_name[len] = '\0';
             //打开文件
-            if (-1 == in_lua_file_open(file)) {
-                continue;
-            }
-
-            in_lua_add_event(ctx, file);
-            mk_event_add(ctx->evl, file_fd, MK_EVENT_CUSTOM, MK_EVENT_READ, &file);
+            in_lua_file_open(file, ctx);
         }
     }
 }
 
-int file_stream_begin_behave(unsigned char ucType, struct flb_in_lua_file_info *file)
+int file_stream_begin_behave(unsigned char ucType, struct flb_in_lua_file_info *file, struct flb_in_lua_config *ctx)
 {
     int iRecv = -1;
     //unsigned int uiCurrentTime = LIMIT_GetCurrentTime();
-    struct flb_in_lua_config *ctx = (struct flb_in_lua_config *)file->event.data;
     COMMAND_STREAM_REQ_S stReq;
 
     stReq.stream_id = htonl(file->file_fd);
@@ -604,15 +600,14 @@ int file_stream_begin_behave(unsigned char ucType, struct flb_in_lua_file_info *
     return 0;
 }
 
-int file_stream_behave(struct flb_in_lua_file_info *file)
+int file_stream_behave(struct flb_in_lua_file_info *file, struct flb_in_lua_config *ctx)
 {
-    return file_stream_begin_behave(COMMAND_STREAM, file);
+    return file_stream_begin_behave(COMMAND_STREAM, file, ctx);
 }
 
 void in_lua_file_rescan(struct flb_in_lua_config *ctx) {
     struct mk_list *head;
     struct flb_in_lua_file_info *entry;
-    int fd = -1;
 
     mk_list_foreach(head, &ctx->file_config){
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
@@ -624,14 +619,11 @@ void in_lua_file_rescan(struct flb_in_lua_config *ctx) {
                 if (entry->file_fd != -1){
                     close(entry->file_fd);
                     entry->file_fd = -1;
-                    mk_event_del(ctx->evl, &entry->event);
                 }
                 entry->offset = 0;
 
-                fd = in_lua_file_open(entry);
-
-                entry->file_fd = fd;
-                in_lua_add_event(ctx, entry);
+                in_lua_file_open(entry, ctx);
+                //in_lua_add_event(ctx, entry);
             }
         }
     }

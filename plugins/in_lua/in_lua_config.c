@@ -59,7 +59,7 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
 
     dir = opendir(file->file_config.log_directory);
     if (NULL == dir) {
-        flb_warn("%s open error for %s.\r\n", file->file_config.log_directory, strerror(errno));
+        flb_warn("%s open error for %s.", file->file_config.log_directory, strerror(errno));
         return;
     }
 
@@ -69,21 +69,32 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
             continue;
         }
         if (ptr->d_type == 8){
-            data_len = snprintf(lua_command, 4096, "('%s'):match('%s')", ptr->d_name, file->file_config.file_match);
+            data_len = snprintf(lua_command, 4096, "return ('%s'):match('%s')", ptr->d_name, file->file_config.file_match);
             lua_command[data_len] = '\0';
+            flb_info("do command : %s", lua_command);
             luaL_dostring(L, lua_command);
             if (first){
-                second = lua_tostring(L, 1);
-                if (second && file->file_config.priority) {
-                    lua_pushstring(L, first);
-                    lua_pushstring(L, second);
-                    lua_getglobal(L, file->file_config.priority);
-                    lua_pcall(L, 2, 1, 0);
-                    first = lua_tostring(L, 1);
+                second = lua_tostring(L, -1);
+                if (second){
+                    if (file->file_config.priority) {
+                        lua_pushstring(L, first);
+                        lua_pushstring(L, second);
+                        lua_getglobal(L, file->file_config.priority);
+                        lua_pcall(L, 2, 1, 0);
+                        first = lua_tostring(L, -1);
+                    }
+                    else {
+                        if (0 > strcmp(second, first)) {
+                            first = second;
+                        }
+                    }
+                    flb_info("match file = %s", second);
                 }
             }
             else {
-                first = lua_tostring(L, 1);
+                first = lua_tostring(L, -1);
+                int tmp = lua_gettop(L);
+                flb_info("match file = %s,  %d   %d", first, tmp, lua_gettop(L));
             }
         }
     }
@@ -96,7 +107,7 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
         }
     }
     else {
-        flb_warn("can not find file to read in directory %s.\r\n", file->file_config.log_directory);
+        flb_warn("can not find file to read in directory %s.", file->file_config.log_directory);
     }
 
     closedir(dir);
@@ -157,7 +168,7 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
         mk_list_foreach(head, &section->entries)
         {
             entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            flb_info("section key = %s, val = %s\n", entry->key, entry->val);
+            flb_info("section key = %s, val = %s", entry->key, entry->val);
 
             if(0 == strcasecmp(entry->key, "journal_directory")) {
                 file->file_config.journal_directory = realpath(entry->val, NULL);
@@ -175,13 +186,12 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
                 file->file_config.priority = entry->val;
             }
             else {
-                flb_info("config [%s] not support %s.\r\n", key, entry->key);
+                flb_info("config [%s] not support %s.", key, entry->key);
             }
         }
 
         in_lua_get_file(ctx, file);
         mk_list_add(&file->_head, &ctx->file_config);
-        file->event.data = ctx;
     }
 
     return;
@@ -210,7 +220,7 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
         mk_list_foreach(head, &section->entries)
         {
             entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            flb_info("section key = %s, val = %s\n", entry->key, entry->val);
+            flb_info("section key = %s, val = %s", entry->key, entry->val);
             if(0 == strcasecmp(entry->key, "watch")) {
                 file->exec_config.watch = entry->val;
             }
@@ -224,7 +234,7 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
                 file->exec_config.refresh_interval = atoi(entry->val);
             }
             else {
-                flb_info("config [%s] not support %s.\r\n", key, entry->key);
+                flb_info("config [%s] not support %s.", key, entry->key);
             }
         }
 
@@ -250,7 +260,7 @@ void in_lua_stat_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
         mk_list_foreach(head, &section->entries)
         {
             entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            flb_info("section key = %s, val = %s\n", entry->key, entry->val);
+            flb_info("section key = %s, val = %s", entry->key, entry->val);
 
             if(0 == strcasecmp(entry->key, "format")) {
                 file->stat_config.format = entry->val;
@@ -259,7 +269,7 @@ void in_lua_stat_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
                 file->stat_config.refresh_interval = atoi(entry->val);
             }
             else {
-                flb_info("config [%s] not support %s.\r\n", key, entry->key);
+                flb_info("config [%s] not support %s.", key, entry->key);
             }
         }
         mk_list_add(&file->_head, &ctx->stat_config);
@@ -295,7 +305,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
         mk_list_foreach(head, &section->entries)
         {
             entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-            flb_info("section key = %s, val = %s\n", entry->key, entry->val);
+            flb_info("section key = %s, val = %s", entry->key, entry->val);
 
             if(0 == strcasecmp(entry->key, "hostname")) {
                 gst_global_config.hostname = entry->val;
@@ -361,7 +371,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 }
             }
             else {
-                flb_warn("config [LS] not support %s.\r\n", entry->key);
+                flb_warn("config [LS] not support %s.", entry->key);
             }
         }
     }
@@ -370,14 +380,14 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
         if (status) {
             /* If something went wrong, error message is at the top of */
             /* the stack */
-            fprintf(stderr, "Couldn't load file: %s\n", lua_tostring(L, -1));
+            fprintf(stderr, "Couldn't load file: %s", lua_tostring(L, -1));
             exit(1);
         }
         /* TODO: Give the global object here */
         /* Ask Lua to run our little script */
         resault = lua_pcall(L, 0, LUA_MULTRET, 0);
         if (resault) {
-            fprintf(stderr, "Failed to start script: %s\n", lua_tostring(L, -1));
+            fprintf(stderr, "Failed to start script: %s", lua_tostring(L, -1));
             exit(1);
         }
 
@@ -417,7 +427,7 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
             mk_list_foreach(head, &section->entries)
             {
                 entry = mk_list_entry(head, struct mk_rconf_entry, _head);
-                flb_info("FILE key = %s, val = %s\n", entry->key, entry->val);
+                flb_info("FILE key = %s, val = %s", entry->key, entry->val);
 
                 if (0 == strcasecmp(entry->val, MK_RCONF_ON))
                 {
@@ -431,7 +441,7 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
                         gst_config_call[loop_num].pfunc(ctx, conf, entry->key);
                     }
                     else {
-                        flb_warn("config prefix of %s in [%s] is wrong. should be \"file_\"\r\n",
+                        flb_warn("config prefix of %s in [%s] is wrong. should be \"file_\"",
                                entry->key,
                                gst_config_call[loop_num].key);
                     }
