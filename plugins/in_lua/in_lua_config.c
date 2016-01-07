@@ -19,8 +19,7 @@
 
 #include <msgpack.h>
 #include <fluent-bit/flb_input.h>
-//#include <fluent-bit/flb_config.h>
-//#include <fluent-bit/flb_pack.h>
+#include <fluent-bit/flb_lua_common.h>
 #include "in_lua.h"
 #include "in_lua_config.h"
 
@@ -36,6 +35,10 @@ static struct flb_in_lua_callback gst_config_call[config_max] = {
 };
 
 static struct flb_in_lua_global gst_global_config;
+
+struct flb_in_lua_global *in_lua_get_global() {
+    return &gst_global_config;
+}
 
 void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file)
 {

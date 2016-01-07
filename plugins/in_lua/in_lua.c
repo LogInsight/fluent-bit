@@ -35,6 +35,12 @@
 #include "in_lua_config.h"
 #include "in_lua_file.h"
 
+static struct mk_list *g_file_head = NULL;
+
+struct mk_list *in_lua_get_file_head() {
+    return g_file_head;
+}
+
 /* Cleanup lua input */
 int in_lua_exit(void *in_context, struct flb_config *config)
 {
@@ -125,6 +131,7 @@ int in_lua_init(struct flb_config *config)
 
 
     in_lua_config(ctx, config->file);
+    g_file_head = &ctx->file_config;
 
     in_lua_file_init(ctx);
 
@@ -159,15 +166,23 @@ int in_lua_collect(struct flb_config *config, void *in_context)
 {
     static uint64_t all_time_record = 0;
 
-    //char *pack;
-    //msgpack_unpacked result;
     struct flb_in_lua_config *ctx = in_context;
     struct mk_list *head;
 
     struct flb_in_lua_exec_info *exec;
+    struct flb_in_lua_file_info *file;
+
+    all_time_record += 1;
 
     if (0 == all_time_record % IN_LUA_DEFAULT_RESAN_TIME) {
         in_lua_file_rescan(ctx);
+    }
+
+    mk_list_foreach(head, &ctx->file_config) {
+        file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
+        if (0 == all_time_record % file->file_config.rescan_interval) {
+            in_lua_file_read(ctx, file);
+        }
     }
 
     mk_list_foreach(head, &ctx->exec_config) {

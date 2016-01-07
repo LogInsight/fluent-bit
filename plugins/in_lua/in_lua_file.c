@@ -293,7 +293,6 @@ static void in_lua_file_modify(struct flb_in_lua_config *ctx, struct inotify_eve
         entry = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         if (entry->wfd == event->wd && 0 == strcmp(entry->file_name, event->name) && entry->file_fd != -1)
         {
-            entry->changed = MK_TRUE;
             break;
         }
     }
@@ -498,9 +497,6 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
         }
 
     }
-    else {
-        file->changed = false;
-    }
     return 0;
 }
 /*
@@ -531,7 +527,6 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
     struct flb_in_lua_file_info *file;
 
     struct mk_list *head;
-    int file_fd = -1;
 
     struct mk_event *event;
 
