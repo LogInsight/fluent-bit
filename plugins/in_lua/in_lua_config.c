@@ -167,6 +167,7 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
         file->new_file = false;
         file->file_name[0] = '\0';
         file->file_fd = -1;
+        mk_list_init(&file->_head);
 
         mk_list_foreach(head, &section->entries)
         {
@@ -210,7 +211,7 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
     struct mk_rconf_entry *entry;
     struct mk_list *head;
 
-    section = mk_rconf_section_get(conf, "EXEC");
+    section = mk_rconf_section_get(conf, key);
     if (section)
     {
 
@@ -221,6 +222,7 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
         file->exec_config.call = NULL;
         file->exec_config.shell = NULL;
         file->exec_config.watch = NULL;
+        mk_list_init(&file->_head);
 
 
         mk_list_foreach(head, &section->entries)
@@ -262,6 +264,7 @@ void in_lua_stat_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
         file = (struct flb_in_lua_stat_info *)malloc(sizeof(struct flb_in_lua_stat_info));
         file->stat_config.refresh_interval = gst_global_config.refresh_interval;
         file->stat_config.format = NULL;
+        mk_list_init(&file->_head);
 
         mk_list_foreach(head, &section->entries)
         {

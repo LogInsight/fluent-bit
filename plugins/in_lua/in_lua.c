@@ -50,6 +50,7 @@ int in_lua_exit(void *in_context, struct flb_config *config)
     struct flb_in_lua_exec_info *exec;
     struct flb_in_lua_stat_info *stat;
     struct mk_list *head;
+    struct mk_list *next;
 
     if(ctx->lua_state) {
         lua_State *L = ctx->lua_state;
@@ -62,7 +63,7 @@ int in_lua_exit(void *in_context, struct flb_config *config)
     if (ctx->lua_paths)
         mk_string_split_free(ctx->lua_paths);
 
-    mk_list_foreach(head, &ctx->file_config) {
+    mk_list_foreach_safe(head, next, &ctx->file_config) {
         file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         if (file->file_fd != -1) {
             in_lua_file_close(ctx, file);
@@ -72,14 +73,14 @@ int in_lua_exit(void *in_context, struct flb_config *config)
     }
 
 
-    mk_list_foreach(head, &ctx->file_config) {
+    mk_list_foreach_safe(head, next, &ctx->exec_config) {
         exec = mk_list_entry(head, struct flb_in_lua_exec_info, _head);
         mk_list_del(head);
         free(exec);
     }
 
 
-    mk_list_foreach(head, &ctx->file_config) {
+    mk_list_foreach_safe(head, next, &ctx->stat_config) {
         stat = mk_list_entry(head, struct flb_in_lua_stat_info, _head);
         mk_list_del(head);
         free(stat);
@@ -87,6 +88,7 @@ int in_lua_exit(void *in_context, struct flb_config *config)
 
     free(ctx->buf);
     ctx->buf = NULL;
+    free(ctx);
     return 0;
 }
 
