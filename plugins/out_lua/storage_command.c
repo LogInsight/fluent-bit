@@ -38,6 +38,28 @@ bool storage_process_connect(struct flb_out_lua_config *ctx, void *head) {
     return true;
 }
 
+bool storage_process_stream_info(struct flb_out_lua_config *ctx, uint32_t *stream_ids, uint16_t stream_count) {
+    uint16_t i = 0;
+    for (i = 0; i < stream_count; i++) {
+        command_stream_info_req_head head;
+        head.stream_id = stream_ids[i];
+        size_t head_len = 0;
+        pack_command_stream(&head, ctx->buf, ctx->buf_len, &head_len);
+
+        uint32_t pack_len = head_len;
+        pack_len = ntohl(pack_len);
+        memcpy(ctx->buf, (const void *)&pack_len, sizeof(uint32_t));
+        ctx->buf_len = head_len + 4;
+
+        size_t net_len = 0;
+        flb_io_net_write(ctx->stream, ctx->buf, ctx->buf_len, &net_len);
+        if (net_len != pack_len) {
+            flb_error("send the data not complete");
+        }
+    }
+    return true;
+}
+
 bool storage_process_connect_close(struct flb_out_lua_config *ctx) {
     size_t req_len = send_buf_size;
     pack_command_close(ctx->buf + 4, send_buf_size - 4, &req_len);

@@ -196,7 +196,7 @@ bool pack_command_stream_info(command_stream_info_req_head *head, char* data, si
     *(pack_type_t *) data = type;
     ret_len += sizeof(type);
 
-    proto_stream_info_req_hton(head);
+    proto_stream_req_hton(head);
     if (ret_len + sizeof(*head) > len) {
         return false;
     }
