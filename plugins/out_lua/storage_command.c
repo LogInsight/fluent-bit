@@ -205,23 +205,27 @@ process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data
 }
 
 size_t parse_data_type(struct flb_out_lua_config *ctx, void *data, size_t len) {
+    flb_info("parse data size = %lu\n", len);
     const char *data_ptr = (const char *)data;
     size_t data_pos = 0;
     while (data_pos < len) {
         uint32_t event_size = 0;
-        if (data_pos + sizeof(uint32_t) < len) {
+        if (data_pos + sizeof(uint32_t) > len) {
             break;
         }
         event_size = *(uint32_t *)data_ptr;
+        event_size = ntohl(event_size);
         data_pos += sizeof(uint32_t);
-        if (data_pos + event_size < len) {
+        data_ptr += sizeof(uint32_t);
+        flb_info("event size = %lu\n", event_size);
+        if (event_size == 0 || data_pos + event_size > len) {
             break;
         }
         uint8_t type = 0;
         type = *(uint8_t*)data_ptr;
-        data_ptr += sizeof(uint8_t);
-        process_data_body(ctx, type, data_ptr, event_size - sizeof(uint8_t));
+        process_data_body(ctx, type, data_ptr - sizeof(uint32_t), event_size + sizeof(uint32_t));
         data_pos += event_size;
+        data_ptr += event_size;
     }
     return data_pos;
 }
