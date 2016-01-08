@@ -223,11 +223,13 @@ int flb_engine_start(struct flb_config *config)
     /* Initialize input plugins */
     flb_input_initialize_all(config);
 
+
+    flb_output_init(config);
+
     /* Inputs pre-run */
     flb_input_pre_run_all(config);
-
+    
     /* Outputs pre-run */
-    flb_output_init(config);
     flb_output_pre_run(config);
 
 
