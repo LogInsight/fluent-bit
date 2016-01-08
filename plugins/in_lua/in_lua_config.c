@@ -182,12 +182,6 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
             }
             else if(0 == strcasecmp(entry->key, "file_match")) {
                 file->file_config.file_match = entry->val;
-                lua_getglobal(ctx->lua_state ,entry->val);
-                if (!(lua_isfunction(ctx->lua_state, -1))) {
-                    fprintf(stderr, "file_match in [%s] is not a function, please check the lua script.", key);
-                    exit(-1);
-                }
-                lua_pop(ctx->lua_state, 1);
             }
             else if(0 == strcasecmp(entry->key, "rescan_interval")) {
                 file->file_config.rescan_interval = atoi(entry->val);
@@ -197,6 +191,12 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
             }
             else if(0 == strcasecmp(entry->key, "priority")) {
                 file->file_config.priority = entry->val;
+                lua_getglobal(ctx->lua_state ,entry->val);
+                if (!(lua_isfunction(ctx->lua_state, -1))) {
+                    fprintf(stderr, "priority (%s) in [%s] is not a function, please check the lua script.\n", entry->val, key);
+                    exit(-1);
+                }
+                lua_pop(ctx->lua_state, 1);
             }
             else {
                 flb_info("config [%s] not support %s.", key, entry->key);
