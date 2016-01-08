@@ -22,7 +22,7 @@ bool storage_process_connect(struct flb_out_lua_config *ctx, void *head) {
 
     size_t out_len = 0;
     flb_io_net_write(ctx->stream, ctx->buf, ctx->buf_len, &out_len);
-
+;
     uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
     if (recv_size < 128 + sizeof(uint16_t)) {
         return false;
@@ -103,7 +103,7 @@ process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data
             error_code = *(uint16_t*) recv_body;
             error_code = ntohs(error_code);
             if (error_code != RET_STATUS_OK) {
-                flb_error("connect res error code = %u\n", error_code);
+                flb_error("data pack res error code = %u\n", error_code);
                 break;
             }
             break;
@@ -123,7 +123,7 @@ process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data
             error_code = *(uint16_t*) recv_body;
             error_code = ntohs(error_code);
             if (error_code != RET_STATUS_OK) {
-                flb_error("connect res error code = %u\n", error_code);
+                flb_error("stream start res error code = %u\n", error_code);
                 break;
             }
             break;
@@ -143,7 +143,7 @@ process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data
             error_code = *(uint16_t*) recv_body;
             error_code = ntohs(error_code);
             if (error_code != RET_STATUS_OK) {
-                flb_error("connect res error code = %u\n", error_code);
+                flb_error("stream end res error code = %u\n", error_code);
                 break;
             }
             break;
@@ -163,7 +163,7 @@ process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data
             error_code = *(uint16_t*) recv_body;
             error_code = ntohs(error_code);
             if (error_code != RET_STATUS_OK) {
-                flb_error("connect res error code = %u\n", error_code);
+                flb_error("stream res error code = %u\n", error_code);
                 break;
             }
             break;
@@ -186,7 +186,7 @@ process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data
             error_code = *(uint16_t*) recv_body;
             error_code = ntohs(error_code);
             if (error_code != RET_STATUS_OK) {
-                flb_error("connect res error code = %u\n", error_code);
+                flb_error("command file res error code = %u\n", error_code);
                 break;
             }
             break;
