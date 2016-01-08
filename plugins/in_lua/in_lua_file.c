@@ -375,47 +375,44 @@ static int in_lua_file_event(struct flb_in_lua_config *ctx, int i_watch_fd)
 
     struct inotify_event *pst_inotify_event = NULL;
     int i_offset = 0;
-    for (;;)
+
+    i_read_len = read(i_watch_fd, sz_buf, 4095);
+    if (i_read_len <= 0)
     {
-        i_read_len = read(i_watch_fd, sz_buf, 4095);
-        if (i_read_len <= 0)
-        {
-            break;
-        }
-        sz_buf[i_read_len] = '\0';
-        while(i_offset < i_read_len)
-        {
-            pst_inotify_event = (struct inotify_event *)&sz_buf[i_offset];
-            if (pst_inotify_event->len > 0) {
-                 switch (pst_inotify_event->mask) {
-                     case IN_MODIFY:{
-                         in_lua_file_modify(ctx, pst_inotify_event);
-                         break;
-                     }
-                     case IN_CREATE:{
-                         in_lua_file_create(ctx, pst_inotify_event);
-                         break;
-                     }
-                     case IN_DELETE:{
-                         in_lua_file_delete(ctx, pst_inotify_event);
-                         break;
-                     }
-                     case IN_MOVED_FROM:{
-                         in_lua_file_move_from(ctx, pst_inotify_event);
-                         break;
-                     }
-                     case IN_MOVED_TO: {
-                         in_lua_file_move_to(ctx, pst_inotify_event);
-                         break;
-                     }
-                     default:{
-                         break;
-                     }
+        return 0;
+    }
+    sz_buf[i_read_len] = '\0';
+    while(i_offset < i_read_len)
+    {
+        pst_inotify_event = (struct inotify_event *)&sz_buf[i_offset];
+        if (pst_inotify_event->len > 0) {
+             switch (pst_inotify_event->mask) {
+                 case IN_MODIFY:{
+                     in_lua_file_modify(ctx, pst_inotify_event);
+                     break;
                  }
-            }
-            i_offset += sizeof(struct inotify_event) + pst_inotify_event->len;
+                 case IN_CREATE:{
+                     in_lua_file_create(ctx, pst_inotify_event);
+                     break;
+                 }
+                 case IN_DELETE:{
+                     in_lua_file_delete(ctx, pst_inotify_event);
+                     break;
+                 }
+                 case IN_MOVED_FROM:{
+                     in_lua_file_move_from(ctx, pst_inotify_event);
+                     break;
+                 }
+                 case IN_MOVED_TO: {
+                     in_lua_file_move_to(ctx, pst_inotify_event);
+                     break;
+                 }
+                 default:{
+                     break;
+                 }
+             }
         }
-        i_offset = 0;
+        i_offset += sizeof(struct inotify_event) + pst_inotify_event->len;
     }
     //LIMIT_CheckCPULimit(uiCurrentTime, LIMIT_GetCurrentTime());
     return 0;
@@ -575,6 +572,7 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
     return 0;
 }
 
+
 void in_lua_file_init(struct flb_in_lua_config *ctx)
 {
     char file_name[4096];
@@ -626,7 +624,7 @@ void in_lua_file_init(struct flb_in_lua_config *ctx)
     }
 
     if (file_num > 0) {
-        g_buf_len = ctx->buf_len / file_num;
+        g_buf_len = (ctx->buf_len - (file_num << 10))/ file_num;
         g_buf = (char *)malloc(g_buf_len);
         if (NULL == g_buf) {
             flb_utils_error_c("read buf malloc failed.");

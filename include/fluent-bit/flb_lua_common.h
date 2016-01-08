@@ -52,6 +52,7 @@ struct flb_in_lua_file_info {
     int wfd;
     uint64_t offset;
     struct stat file_stat;
+    uint32_t crc32;
 };
 
 struct flb_in_lua_exec_info {

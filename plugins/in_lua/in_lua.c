@@ -178,11 +178,14 @@ int in_lua_init(struct flb_config *config)
     if (ret == -1) {
         flb_utils_error_c("Could not set collector for lua input plugin");
     }
+
+    flb_info("init end.");
     return 0;
 }
 
 int in_lua_collect(struct flb_config *config, void *in_context)
 {
+    flb_info("collect start.");
     static uint64_t all_time_record = 0;
 
     struct flb_in_lua_config *ctx = in_context;
@@ -214,11 +217,14 @@ int in_lua_collect(struct flb_config *config, void *in_context)
     }
 
 
+    flb_info("collect end.");
     return 0;
 }
 
 void *in_lua_flush(void *in_context, int *size)
 {
+
+    flb_info("flush start.");
     char *buf;
 
     struct flb_in_lua_config *ctx = in_context;
@@ -235,6 +241,8 @@ void *in_lua_flush(void *in_context, int *size)
 
     memcpy(buf, ctx->buf, ctx->read_len);
     ctx->read_len = 0;
+
+    flb_info("flush_end.");
     return buf;
 }
 /*

@@ -182,6 +182,12 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
             }
             else if(0 == strcasecmp(entry->key, "file_match")) {
                 file->file_config.file_match = entry->val;
+                lua_getglobal(ctx->lua_state ,entry->val);
+                if (!(lua_isfunction(ctx->lua_state, -1))) {
+                    fprintf(stderr, "file_match in [%s] is not a function, please check the lua script.", key);
+                    exit(-1);
+                }
+                lua_pop(ctx->lua_state, 1);
             }
             else if(0 == strcasecmp(entry->key, "rescan_interval")) {
                 file->file_config.rescan_interval = atoi(entry->val);
@@ -296,6 +302,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
     int status = 0;
     int resault = 0;
     int tmp;
+    char *path = NULL;
 
     gst_global_config.hostname = NULL;
     gst_global_config.refresh_interval = 5;
@@ -332,8 +339,14 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 ctx->lua_paths = mk_string_split_line(entry->val);
                 mk_list_foreach(lua_path_head, ctx->lua_paths) {
                     lua_path_entry = mk_list_entry(head, struct mk_string_line, _head);
-                    flb_info("extend_lua_path lua_path = %s", lua_path_entry->val);
-                    set_lua_path(L, lua_path_entry->val, (size_t) lua_path_entry->len);
+                    path = realpath(lua_path_entry->val, NULL);
+                    if (path) {
+                        flb_info("extend_lua_path lua_path = %s", lua_path_entry->val);
+                        set_lua_path(L, lua_path_entry->val, (size_t) lua_path_entry->len);
+                    }
+                    else {
+                        flb_warn("extend_lua_path failed. lua_path = %s", lua_path_entry->val);
+                    }
                 }
             }
             else if (0 == strcasecmp(entry->key, "lua_engine")){
@@ -392,7 +405,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
             fprintf(stderr, "Couldn't load file: %s", lua_tostring(L, -1));
             exit(1);
         }
-        /* TODO: Give the global object here */
+
         /* Ask Lua to run our little script */
         resault = lua_pcall(L, 0, LUA_MULTRET, 0);
         if (resault) {
@@ -400,9 +413,16 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
             exit(1);
         }
 
-        /* TODO: call LUA function from C */
-        //in_lua_require(L, ctx->lua_engine, "_ls_engine");
+        lua_getglobal(ctx->lua_state, "process");
+        if (!(lua_isfunction(L, -1))) {
+            flb_utils_error_c("lua_engine of [LS] does not has function process.");
+        }
+        lua_pop(ctx->lua_state, -1);
     }
+    else {
+        flb_utils_error_c("lua_engine not exit.");
+    }
+
     if (strcasecmp(gst_global_config.watch_mode, "timer")) {
         ctx->timer_mode = MK_TRUE;
     }
