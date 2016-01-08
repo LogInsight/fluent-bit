@@ -245,18 +245,20 @@ void *in_lua_flush(void *in_context, int *size)
     flb_info("flush_end.");
     return buf;
 }
-/*
+
 int in_lua_pre_run(void *in_context, struct flb_config *config) {
     struct flb_in_lua_config *ctx = in_context;
+
+    in_lua_file_pre_run(ctx);
     return 0;
 }
-*/
+
 /* Plugin reference */
 struct flb_input_plugin in_lua_plugin = {
     .name         = "lua",
     .description  = "Lua Input",
     .cb_init      = in_lua_init,
-    .cb_pre_run   = NULL,
+    .cb_pre_run   = in_lua_pre_run,
     .cb_collect   = in_lua_collect,
     .cb_flush_buf = in_lua_flush,
     .cb_exit      = in_lua_exit

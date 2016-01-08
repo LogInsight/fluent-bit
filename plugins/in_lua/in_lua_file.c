@@ -21,6 +21,7 @@
 #include "in_lua.h"
 #include "in_lua_config.h"
 #include "in_lua_file.h"
+#include "in_lua_tool.h"
 
 
 static int g_i_inotify_fd= -1;
@@ -514,6 +515,11 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
         return 0;
     }
 
+    if (file->offset < stat.st_size) {
+        file->offset = 0;
+        lseek(file->file_fd, 0, SEEK_SET);
+    }
+
 
     buf_len = ctx->buf_len  - ctx->read_len;
     if (buf_len > g_buf_len){
@@ -573,7 +579,86 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
 }
 
 
-void in_lua_file_init(struct flb_in_lua_config *ctx)
+void in_lua_file_init(struct flb_in_lua_config *ctx) {
+    int len = 0;
+    int fd = -1;
+    int buf_len = 4096;
+    int read_len = 0;
+    int real_data_len = 0;
+
+
+    struct flb_in_lua_file_info *file;
+    struct mk_list *head;
+    char *pc_current = NULL;
+    const char *res = NULL;
+    lua_State *L = ctx->lua_state;
+    char file_name[4096];
+    char buf[4096];
+    char read_buf[5120];
+
+
+    mk_list_foreach(head, &ctx->file_config) {
+        file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
+
+        if (!(file->new_file)){
+            continue;
+        }
+
+        //与路径整合
+        len = snprintf(file_name, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
+        file_name[len] = '\0';
+        fd = open(file_name, O_RDONLY);
+        if (fd == -1) {
+            flb_error("file %s open failed.", file_name);
+            continue;
+        }
+        fstat(fd, &file->file_stat);
+        if (file->file_stat.st_size >= 4096){
+            buf_len = 4096;
+            while (buf_len > 0) {
+                read_len = read(fd, read_buf, 5120);
+                if (read_len > 0) {
+                    pc_current = read_buf + read_len - 1;
+                    for (; pc_current >= read_buf; --pc_current) {
+                        if (*pc_current == '\n') {
+                            real_data_len = pc_current - read_buf + 1;
+                            break;
+                        }
+                    }
+
+                    if (real_data_len < read_len && real_data_len > 0) {
+                        lseek(file->file_fd, real_data_len - read_len, SEEK_CUR);
+                    }
+
+                    if (real_data_len == 0) {
+                        real_data_len = read_len;
+                    }
+
+                    lua_getglobal(L, "process");
+                    lua_pushlstring(L, read_buf, real_data_len);
+                    lua_pcall(L, 1, 2, 0);
+                    res = lua_tostring(L, -2);
+                    read_len = lua_tointeger(L, -1);
+                    lua_pop(L, 2);
+
+                    memcpy(&buf[4096 - buf_len], res, buf_len);
+                    buf_len -= read_len;
+                }
+                else {
+                    break;
+                }
+            }
+
+            if (buf_len <= 0) {
+                file->crc32 = crc32_compute_buf(0, buf, 4096);
+            }
+
+        }
+        close(fd);
+    }
+}
+
+void in_lua_file_pre_run(struct flb_in_lua_config *ctx)
 {
     char file_name[4096];
     int len = 0;
