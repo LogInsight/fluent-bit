@@ -650,7 +650,7 @@ void in_lua_file_init(struct flb_in_lua_config *ctx) {
             }
 
             if (buf_len <= 0) {
-                file->crc32 = crc32_compute_buf(0, buf, 4096);
+                file->crc32 = crc32_calc(0, buf, 4096);
             }
 
         }
