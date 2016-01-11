@@ -74,7 +74,7 @@ int cb_lua_exit(void *data, struct flb_config *config) {
     (void) config;
     struct flb_out_lua_config *ctx = data;
     lua_meta_destory(&ctx->m_list);
-    storage_process_connect_close(ctx);
+    //storage_process_connect_close(ctx);
     free(ctx);
 
     return 0;

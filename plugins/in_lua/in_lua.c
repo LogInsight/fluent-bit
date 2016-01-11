@@ -34,6 +34,7 @@
 #include "in_lua.h"
 #include "in_lua_config.h"
 #include "in_lua_file.h"
+#include "in_lua_tool.h"
 
 static struct mk_list *g_file_head = NULL;
 
@@ -142,6 +143,7 @@ static void in_lua_ctx_init(struct flb_in_lua_config *ctx) {
 /* Initialize plugin */
 int in_lua_init(struct flb_config *config)
 {
+    crc32_init();
     int ret;
     struct flb_in_lua_config *ctx;
 
