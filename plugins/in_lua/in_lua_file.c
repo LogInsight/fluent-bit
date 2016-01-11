@@ -483,14 +483,13 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
     }
 
     file->file_fd = fd;
-
-    file_open_behave(ctx, file, fd, 0, path);
-
-    flb_info("file = %s, fd = %d", path, fd);
     file->new_file = MK_FALSE;
-    file->offset = 0;
     file->stream_id = g_stream_id;
     g_stream_id ++;
+
+    file_open_behave(ctx, file, file->stream_id, 0, path);
+
+    flb_info("file = %s, fd = %d", path, fd);
 
     return fd;
 }
