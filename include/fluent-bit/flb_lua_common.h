@@ -24,6 +24,7 @@ struct flb_in_lua_file{
     char *file_match;
     char *priority;
     int rescan_interval;
+    struct mk_list *tags;
 };
 
 struct flb_in_lua_exec{
@@ -31,6 +32,7 @@ struct flb_in_lua_exec{
     int refresh_interval;
     char *shell;
     char *call;
+    struct mk_list *tags;
 };
 
 struct flb_in_lua_stat{

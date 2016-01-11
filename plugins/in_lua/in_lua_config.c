@@ -199,6 +199,9 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
                 }
                 lua_pop(ctx->lua_state, 1);
             }
+            else if (0 == strcasecmp(entry->key, "tags")) {
+                file->file_config.tags = mk_string_split_line(entry->val);
+            }
             else {
                 flb_info("config [%s] not support %s.", key, entry->key);
             }
@@ -258,6 +261,9 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
             }
             else if(0 == strcasecmp(entry->key, "refresh_interval")) {
                 file->exec_config.refresh_interval = atoi(entry->val);
+            }
+            else if (0 == strcasecmp(entry->key, "tags")) {
+                file->exec_config.tags = mk_string_split_line(entry->val);
             }
             else {
                 flb_info("config [%s] not support %s.", key, entry->key);

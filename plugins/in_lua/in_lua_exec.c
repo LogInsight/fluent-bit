@@ -22,14 +22,19 @@ static void in_lua_exec_open_behave(struct flb_in_lua_config *ctx, struct flb_in
     int len = -1;
     COMMAND_OPEN_REQ_S stReq;
     struct stat stat;
-    char file_name[8192];
+    char buf[8192];
+    uint32_t data_len = 0;
+    uint32_t tlv_num = 0;
+    struct mk_list *head;
+    struct mk_string_line *entry;
+
     if (type >= exec_both) {
         return;
     }
     fstat(exec->exec_fd[type], &stat);
 
-    len = snprintf(file_name, 8192, "/dev/%s/%s",g_std_type[type], exec->exec_config.shell);
-    file_name[len] = '\0';
+    len = snprintf(buf, 8192, "/dev/%s/%s",g_std_type[type], exec->exec_config.shell);
+    data_len += len;
 
     stReq.create_timestamp = htonll(stat.st_ctime);
     stReq.modify_timestamp = htonll(stat.st_mtime);
@@ -39,14 +44,25 @@ static void in_lua_exec_open_behave(struct flb_in_lua_config *ctx, struct flb_in
     stReq.offset = htonll(exec->offset[type]);
     stReq.stream_id = htonl(exec->stream_id[type]);
     stReq.substream_id = 0;
-    stReq.tlv_len = 0;
     stReq.filename_len = htons(len);
+
+    mk_list_foreach(head, exec->exec_config.tags) {
+        entry = mk_list_entry(head, struct mk_string_line, _head);
+
+        len = tlv_encode(FILE_TAG, (uint16_t)entry->len, entry->val, buf + data_len, 8192 - data_len);
+        if (len > 0) {
+            data_len += len;
+            tlv_num ++;
+        }
+    }
+
+    stReq.tlv_len = htonl(tlv_num);
 
     len = data_encode(COMMAND_STREAM_START,
                       &stReq,
                       sizeof(stReq),
-                      (void *)file_name,
-                      len,
+                      (void *)buf,
+                      data_len,
                       ctx->buf + ctx->read_len,
                       ctx->buf_len - ctx->read_len);
 
