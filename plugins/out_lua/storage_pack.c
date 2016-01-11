@@ -185,7 +185,7 @@ bool pack_command_data_pack(const char* data, size_t input_len, char* out, size_
     return true;
 }
 
-bool pack_command_stream_info(command_stream_info_req_head *head, char* data, size_t len, size_t *res_len) {
+bool pack_command_file_check(struct command_file_check_req_head *head, char* data, size_t len, size_t *res_len) {
     size_t ret_len = 0;
     pack_type_t  type = COMMAND_STREAM_INFO;
 
@@ -196,12 +196,12 @@ bool pack_command_stream_info(command_stream_info_req_head *head, char* data, si
     *(pack_type_t *) data = type;
     ret_len += sizeof(type);
 
-    proto_stream_req_hton(head);
+    proto_file_check_req_hton(head);
     if (ret_len + sizeof(*head) > len) {
         return false;
     }
 
-    *(command_stream_info_req_head *) (data + ret_len) = *head;
+    *(struct command_file_check_req_head *) (data + ret_len) = *head;
     ret_len += sizeof(*head);
 
     *res_len = ret_len;

@@ -28,6 +28,7 @@ bool pack_command_file(const char *command_line, size_t line_size,
                        char* data, size_t len, size_t *res_len);
 
 bool pack_command_data_pack(const char* data, size_t input_len, char* out, size_t out_len, size_t *res_len);
-bool pack_command_stream_info(command_stream_info_req_head *head, char* data, size_t len, size_t *res_len);
+
+bool pack_command_file_check(struct command_file_check_req_head *head, char* data, size_t len, size_t *res_len);
 
 #endif //FLUENT_BIT_STORAGE_COMMAND_H

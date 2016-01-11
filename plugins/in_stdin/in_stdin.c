@@ -31,7 +31,7 @@
 
 #include "in_stdin.h"
 
-#define STORAGE_DEBUG 1
+#define STORAGE_DEBUG 0
 
 /* Initialize plugin */
 int in_stdin_init(struct flb_config *config)
