@@ -117,7 +117,7 @@ typedef struct tag_file_head_req_s {
 
 typedef struct tag_tl_head_s
 {
-    unsigned int type;
+    uint16_t type;
     unsigned int len;
 }TL_HEAD_S;
 
@@ -165,9 +165,11 @@ int data_encode(unsigned char ucType,
 
 void in_lua_file_init(struct flb_in_lua_config *ctx);
 void in_lua_file_rescan(struct flb_in_lua_config *ctx);
-int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file);
+void in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file);
 void in_lua_file_close(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file);
 void in_lua_file_pre_run(struct flb_in_lua_config *ctx);
+int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, int stream_id, bool isfile);
+
 
 
 unsigned long long static inline ntohll(unsigned long long val)

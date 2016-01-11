@@ -10,6 +10,12 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+enum exec_type {
+    exec_stdout = 0,
+    exec_stderr,
+    exec_both
+};
+
 
 
 struct flb_in_lua_file{
@@ -21,8 +27,8 @@ struct flb_in_lua_file{
 };
 
 struct flb_in_lua_exec{
+    uint8_t exec_type;
     int refresh_interval;
-    char *watch;
     char *shell;
     char *call;
 };
@@ -55,11 +61,15 @@ struct flb_in_lua_file_info {
     uint64_t offset;
     struct stat file_stat;
     uint32_t crc32;
+    uint32_t stream_id;
 };
 
 struct flb_in_lua_exec_info {
     struct mk_list _head;
     struct flb_in_lua_exec exec_config;
+    uint32_t stream_id[exec_both];
+    uint32_t exec_fd[exec_both];
+    uint64_t offset[exec_both];
 };
 
 struct flb_in_lua_stat_info {

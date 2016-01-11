@@ -7,6 +7,7 @@ set(src
   in_lua.c
   in_lua_config.c
   in_lua_file.c
+  in_lua_exec.c
   in_lua_tool.c)
 
 include_directories(

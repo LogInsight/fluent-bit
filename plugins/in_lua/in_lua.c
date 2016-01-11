@@ -35,6 +35,9 @@
 #include "in_lua_config.h"
 #include "in_lua_file.h"
 #include "in_lua_tool.h"
+#include "in_lua_exec.h"
+
+uint32_t g_stream_id = 0;
 
 static struct mk_list *g_file_head = NULL;
 
@@ -148,13 +151,14 @@ int in_lua_init(struct flb_config *config)
     struct flb_in_lua_config *ctx;
 
 
+
     /* Allocate space for the configuration */
     ctx = malloc(sizeof(struct flb_in_lua_config));
     if (!ctx) {
         flb_error("malloc failed.");
         return -1;
     }
-
+    g_stream_id = 0;
     in_lua_ctx_init(ctx);
 
     ctx->evl = config->evl;
@@ -164,6 +168,7 @@ int in_lua_init(struct flb_config *config)
     g_file_head = &ctx->file_config;
 
     in_lua_file_init(ctx);
+    in_lua_exec_init(ctx);
 
     /* Set the context */
     ret = flb_input_set_context("lua", ctx, config);
@@ -213,6 +218,7 @@ int in_lua_collect(struct flb_config *config, void *in_context)
         exec = mk_list_entry(head, struct flb_in_lua_exec_info, _head);
         if (0 == all_time_record % exec->exec_config.refresh_interval) {
             //todo exec event
+            in_lua_exec_read(ctx, exec);
         }
     }
 

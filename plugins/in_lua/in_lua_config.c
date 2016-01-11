@@ -168,6 +168,7 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
         file->file_name[0] = '\0';
         file->file_fd = -1;
         mk_list_init(&file->_head);
+        file->stream_id = 0;
 
         mk_list_foreach(head, &section->entries)
         {
@@ -225,9 +226,9 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
 
 
         file->exec_config.refresh_interval = gst_global_config.refresh_interval;
-        file->exec_config.call = NULL;
+        //file->exec_config.call = NULL;
         file->exec_config.shell = NULL;
-        file->exec_config.watch = NULL;
+        file->exec_config.exec_type = exec_both;
         mk_list_init(&file->_head);
 
 
@@ -236,7 +237,18 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
             entry = mk_list_entry(head, struct mk_rconf_entry, _head);
             flb_info("section key = %s, val = %s", entry->key, entry->val);
             if(0 == strcasecmp(entry->key, "watch")) {
-                file->exec_config.watch = entry->val;
+                if (0 == strcasecmp(entry->val, "both")) {
+                    //pass
+                }
+                else if (0 == strcasecmp(entry->val, "stdout")) {
+                    file->exec_config.exec_type = exec_stdout;
+                }
+                else if (0 == strcasecmp(entry->val, "stderr")) {
+                    file->exec_config.exec_type = exec_stderr;
+                }
+                else {
+                    flb_error("match config error in [%s], the value should be one of [both | stdout | stderr]", key);
+                }
             }
             else if(0 == strcasecmp(entry->key, "shell")) {
                 file->exec_config.shell = entry->val;
