@@ -319,50 +319,50 @@ unsigned long long static inline htonll(unsigned long long val)
 }
 ////////////////////////////////////////////////////
 
+//command: file_check
+struct command_file_check_req_head {
+    uint32_t crc32_value;
+    uint64_t create_timestamp;
+    uint32_t owner;
+    uint32_t group;
+    uint32_t mod;
+    uint64_t file_size;
+    uint16_t file_name_len;
+};
 
-//command: stream_info
-    typedef struct command_stream_req_head command_stream_info_req_head;
-    struct command_stream_info_res_head {
-        uint16_t status;
-        uint32_t stream_id;
-        uint32_t substream_id;
-        uint64_t create_timestamp;
-        uint64_t modify_timestamp;
-        uint32_t owner;
-        uint32_t group;
-        uint32_t mod;
-        uint64_t offset;
-        uint16_t filename_len;
-        uint32_t tlv_len;
-        //body: [filename] [tlv]
-    };
+struct command_file_check_res_head {
+    uint16_t status;
+    uint64_t offset;
+};
 
-#define proto_stream_info_res_hton(head) { \
-    head->status = htons(head->status); \
-    head->stream_id = htonl(head->stream_id); \
-    head->substream_id = htonl(head->substream_id); \
+#define proto_file_check_req_hton(head) { \
+    head->crc32_value = htonl(head->crc32_value); \
     head->create_timestamp = htonll(head->create_timestamp); \
-    head->modify_timestamp = htonll(head->modify_timestamp); \
     head->owner = htonl(head->owner); \
-    head->group = htonl(head->mod); \
+    head->group = htonl(head->group); \
     head->mod = htonl(head->mod); \
-    head->offset = htonll(head->offset); \
-    head->filename_len = htons(head->filename_len); \
-    head->tlv_len = htonl(head->tlv_len); \
+    head->file_size = htonll(head->file_size); \
+    head->file_name_len = htons(head->file_name_len); \
 }
 
-#define proto_stream_info_res_ntoh(head) { \
-    head->status = ntohs(head->status); \
-    head->stream_id = ntohl(head->stream_id); \
-    head->substream_id = ntohl(head->substream_id); \
+#define proto_file_check_req_ntoh(head) { \
+    head->crc32_value = ntohll(head->crc32_value); \
     head->create_timestamp = ntohll(head->create_timestamp); \
-    head->modify_timestamp = ntohll(head->modify_timestamp); \
     head->owner = ntohl(head->owner); \
-    head->group = ntohl(head->mod); \
+    head->group = ntohl(head->group); \
     head->mod = ntohl(head->mod); \
+    head->file_size = ntohll(head->file_size); \
+    head->file_name_len = ntohs(head->file_name_len); \
+}
+
+#define proto_file_check_res_hton(head) { \
+    head->status = htons(head->status); \
+    head->offset = htonll(head->offset); \
+}
+
+#define proto_file_check_res_ntoh(head) { \
+    head->status = ntohs(head->status); \
     head->offset = ntohll(head->offset); \
-    head->filename_len = ntohs(head->filename_len); \
-    head->tlv_len = ntohl(head->tlv_len); \
 }
 ////////////////////////////////////////////////////
 

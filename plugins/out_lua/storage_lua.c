@@ -11,13 +11,14 @@
 
 #include <fluent-bit/flb_utils.h>
 #include <fluent-bit/flb_io.h>
+#include <fluent-bit/flb_lua_common.h>
 
 const size_t send_buf_size = 1024 * 1024;
 
 struct flb_output_plugin out_lua_plugin;
 
-#define SERVPORT 11110
-#define SERVER_IP "192.168.200.228"
+#define SERVPORT 12800
+#define SERVER_IP "0"
 
 int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config) {
     flb_info("call out_lua_init");
@@ -31,12 +32,19 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config) {
         return -1;
     }
 
+    struct flb_in_lua_global *in_lua_config = in_lua_get_global();
     /* Set default network configuration */
     if (!plugin->net_host) {
-        plugin->net_host = strdup(SERVER_IP);
+        if (in_lua_config->server_ip == NULL)
+            plugin->net_host = strdup(SERVER_IP);
+        else
+            plugin->net_host = strdup(in_lua_config->server_ip);
     }
     if (plugin->net_port == 0) {
-        plugin->net_port = SERVPORT;
+        if (in_lua_config->server_port == 0)
+            plugin->net_port = SERVPORT;
+        else
+            plugin->net_port = in_lua_config->server_port;
     }
 
     /* Prepare an upstream handler */
@@ -88,7 +96,7 @@ int cb_lua_flush(void *data, size_t bytes, void *out_context,
         flb_info("call out lua flush data is NULL");
         return 0;
     }
-    struct flb_out_fluentd_config *ctx = out_context;
+    struct flb_out_lua_config *ctx = (struct flb_out_lua_config*)out_context;
     int ret = -1;
     ret = parse_data_type(ctx, data, bytes);
     return ret;
