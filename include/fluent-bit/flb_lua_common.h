@@ -39,8 +39,10 @@ struct flb_in_lua_global{
     uint32_t mem_size;
     uint32_t access_key;
     uint32_t host_key;
+    uint32_t server_port;
     char *hostname;
     char *watch_mode;
+    char *server_ip;
 };
 
 struct flb_in_lua_file_info {

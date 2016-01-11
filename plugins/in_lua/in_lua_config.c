@@ -310,6 +310,8 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
     gst_global_config.io_limit = IN_LUA_DEFAULT_IO_LIMIT;
     gst_global_config.mem_size = IN_LUA_DEFAULT_MEM_SIZE;
     gst_global_config.watch_mode = "event";
+    gst_global_config.server_ip = NULL;
+    gst_global_config.server_port = 0;
 
     section = mk_rconf_section_get(conf, "LS");
     if (section)
@@ -390,6 +392,18 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 }
                 else {
                     flb_warn("watch_mode error in [LS], the value must be 'timer' or 'event'.");
+                }
+            }
+            else if (0 == strcasecmp(entry->key, "server_ip")){
+                gst_global_config.server_ip = entry->key;
+            }
+            else if (0 == strcasecmp(entry->key, "server_port")) {
+                tmp = atoi(entry->key);
+                if (tmp > 0 && tmp < 65536) {
+                    gst_global_config.server_port = tmp;
+                }
+                else {
+                    flb_warn("server_port error in [LS], the value must be in [1, 65535].");
                 }
             }
             else {
