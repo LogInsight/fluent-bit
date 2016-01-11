@@ -37,6 +37,14 @@ typedef enum ret_status {
 
 }RET_STATUS_E;
 
+enum tlv_type {
+    HOST_NAME = 0,
+    HOST_TYPE,
+    FILE_STREAM_TYPE,
+    FILE_TAG,
+    FILE_MAX
+};
+
 typedef struct command_connect_req_head {
     uint16_t version;
     uint32_t userid;
@@ -153,7 +161,7 @@ typedef struct tag_stream_id_info_s
 
 #pragma pack()
 
-int tlv_encode(TLV_HEAD_S *pstHead, void *pBuf, unsigned int uiBufLen);
+int tlv_encode(uint8_t type, uint16_t len, char *value, char *out_buf, uint32_t out_buf_len);
 
 int data_encode(unsigned char ucType,
                 void *pHead,

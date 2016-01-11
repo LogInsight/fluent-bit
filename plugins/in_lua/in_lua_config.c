@@ -199,6 +199,9 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
                 }
                 lua_pop(ctx->lua_state, 1);
             }
+            else if (0 == strcasecmp(entry->key, "tags")) {
+                file->file_config.tags = mk_string_split_line(entry->val);
+            }
             else {
                 flb_info("config [%s] not support %s.", key, entry->key);
             }
@@ -258,6 +261,9 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
             }
             else if(0 == strcasecmp(entry->key, "refresh_interval")) {
                 file->exec_config.refresh_interval = atoi(entry->val);
+            }
+            else if (0 == strcasecmp(entry->key, "tags")) {
+                file->exec_config.tags = mk_string_split_line(entry->val);
             }
             else {
                 flb_info("config [%s] not support %s.", key, entry->key);
@@ -368,10 +374,10 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 flb_info("lua_execute lua_engine = %s", realpath(ctx->lua_engine, NULL));
             }
             else if (0 == strcasecmp(entry->key, "access_key")){
-                gst_global_config.access_key = atoi(entry->val);
+                gst_global_config.access_key = entry->val;
             }
             else if (0 == strcasecmp(entry->key, "host_key")){
-                gst_global_config.host_key = atoi(entry->val);
+                gst_global_config.host_key = entry->val;
             }
             else if(0 == strcasecmp(entry->key, "io_limit")){
                 tmp = atoi(entry->val);

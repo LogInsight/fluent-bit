@@ -32,17 +32,25 @@ static int g_i_inotify_fd= -1;
 
 int file_stream_behave(int stream_id, struct flb_in_lua_config *ctx);
 
-int tlv_encode(TLV_HEAD_S *pstHead, void *pBuf, unsigned int uiBufLen)
-{
-    unsigned int uiLen = sizeof(pstHead->stTl) + pstHead->stTl.len;
 
-    if(uiLen > uiBufLen)
-    {
+int tlv_encode(uint8_t type, uint16_t len, char *value, char *out_buf, uint32_t out_buf_len) {
+    char *current = out_buf;
+
+    int data_len = sizeof(uint8_t) + sizeof(uint16_t) +len;
+
+    if (out_buf_len < data_len) {
         return -1;
     }
-    memcpy(pBuf, pstHead, sizeof(pstHead->stTl));
-    memcpy(pBuf + sizeof(pstHead->stTl), pstHead->pcValue, pstHead->stTl.len);
-    return uiLen;
+
+    *current = type;
+    current ++;
+    *(uint16_t *)current = ntohs(len);
+    current += sizeof(uint16_t);
+    if (len > 0) {
+        memcpy(current, value, len);
+    }
+
+    return data_len;
 }
 
 int data_encode(unsigned char ucType,
@@ -427,14 +435,24 @@ int in_lua_read_event(void *data) {
 int file_open_behave(struct flb_in_lua_config *ctx,
                      struct flb_in_lua_file_info *file,
                      int stream_id,
-                     int sub_stream_id,
-                     const char *file_name)
+                     int sub_stream_id)
 {
     //printf("file_open_behave.\r\n");
     int len = -1;
+    char buf[8192];
+    uint32_t tlv_num = 0;
+    int data_len = 0;
+
     COMMAND_OPEN_REQ_S stReq;
     struct stat *stat = &file->file_stat;
+
+    struct mk_list *head;
+    struct mk_string_line *entry;
+
     fstat(file->file_fd, stat);
+
+    len = snprintf(buf, 8192, "%s/%s", file->file_config.log_directory, file->file_name);
+    data_len += len;
 
     stReq.create_timestamp = htonll(stat->st_ctime);
     stReq.modify_timestamp = htonll(stat->st_mtime);
@@ -444,14 +462,25 @@ int file_open_behave(struct flb_in_lua_config *ctx,
     stReq.offset = htonll(file->offset);
     stReq.stream_id = htonl(stream_id);
     stReq.substream_id = htonl(sub_stream_id);
-    stReq.tlv_len = 0;
-    stReq.filename_len = htons(strlen(file_name));
+    stReq.filename_len = htons((uint16_t)len);
+
+    mk_list_foreach(head, file->file_config.tags) {
+        entry = mk_list_entry(head, struct mk_string_line, _head);
+        len = tlv_encode(FILE_TAG, (uint16_t)entry->len, entry->val, buf + data_len, 8192 - data_len);
+
+        if (len > 0) {
+            data_len += len;
+            tlv_num ++;
+        }
+    }
+
+    stReq.tlv_len = htonl(tlv_num);
 
     len = data_encode(COMMAND_STREAM_START,
                         &stReq,
                         sizeof(stReq),
-                        (void *)file_name,
-                        ntohs(stReq.filename_len),
+                        (void *)buf,
+                        data_len,
                         ctx->buf + ctx->read_len,
                         ctx->buf_len - ctx->read_len);
 
@@ -487,7 +516,7 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
     file->stream_id = g_stream_id;
     g_stream_id ++;
 
-    file_open_behave(ctx, file, file->stream_id, 0, path);
+    file_open_behave(ctx, file, file->stream_id, 0);
 
     flb_info("file = %s, fd = %d", path, fd);
 

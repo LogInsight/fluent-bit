@@ -24,6 +24,7 @@ struct flb_in_lua_file{
     char *file_match;
     char *priority;
     int rescan_interval;
+    struct mk_list *tags;
 };
 
 struct flb_in_lua_exec{
@@ -31,6 +32,7 @@ struct flb_in_lua_exec{
     int refresh_interval;
     char *shell;
     char *call;
+    struct mk_list *tags;
 };
 
 struct flb_in_lua_stat{
@@ -43,9 +45,9 @@ struct flb_in_lua_global{
     uint32_t io_limit;
     uint32_t cpu_limit;
     uint32_t mem_size;
-    uint32_t access_key;
-    uint32_t host_key;
     uint32_t server_port;
+    char *access_key;
+    char *host_key;
     char *hostname;
     char *watch_mode;
     char *server_ip;
