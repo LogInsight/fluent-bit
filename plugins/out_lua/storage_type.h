@@ -51,7 +51,7 @@ unsigned long long static inline htonll(unsigned long long val)
         COMMAND_STREAM = 5,          // 切换流,表示后面将要发送该流的数据包
         COMMAND_SUBSTREAM = 6,       // 切换子流,表示后面将要发送该子流的数据包
         COMMAND_FILE = 7,            // 表示文件的一系列操作(移动/复制/删除/改名等)
-        COMMAND_STREAM_INFO = 8,     // 获取stream的详细信息
+        COMMAND_FILE_CHECK = 8,      // 校验文件是否已经存在
         COMMAND_KEEP_ALIVE = 9,      // 保活命令
         ERROR_COMMAND
     };

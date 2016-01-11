@@ -15,12 +15,11 @@ bool storage_process_file_check(struct flb_out_lua_config *ctx) {
     struct mk_list *file_list = in_lua_get_file_head();
     struct mk_list *mk_head;
     struct flb_in_lua_file_info *tmp;
-
+    char real_file_name[4096];
     mk_list_foreach(mk_head, file_list) {
         tmp = mk_list_entry(mk_head, struct flb_in_lua_file_info, _head);
-        flb_info("file name = %s", tmp->file_name);
-        flb_info("file fd = %d", tmp->file_fd);
-        flb_info("new file = %d", tmp->new_file);
+        if (tmp->new_file != 1)
+            continue;
 
         struct command_file_check_req_head head;
         head.crc32_value = tmp->crc32;
@@ -29,33 +28,36 @@ bool storage_process_file_check(struct flb_out_lua_config *ctx) {
         head.group = tmp->file_stat.st_gid;
         head.create_timestamp = tmp->file_stat.st_ctime;
         head.file_size = tmp->file_stat.st_size;
-        //head.stream_id = stream_ids[i];
+        size_t file_name_len = snprintf(real_file_name, 4096, "%s/%s", tmp->file_config.log_directory, tmp->file_name);
         size_t head_len = 0;
-        pack_command_file_check(&head, ctx->buf + 4, ctx->buf_len, &head_len);
-        head.file_name_len = strlen(tmp->file_name);
-        char *buf_ptr = ctx->buf + 4 + sizeof(struct command_file_check_req_head);
-        memcpy(buf_ptr, tmp->file_name, strlen(tmp->file_name));
-        uint32_t pack_len = head_len + strlen(tmp->file_name);
+        head.file_name_len = file_name_len;
+        pack_command_file_check(&head, ctx->buf + 4, send_buf_size - 4, &head_len);
+        //flb_info("res_len = %d\n", head_len);
+        char *buf_ptr = ctx->buf + 4 + head_len;
+        memcpy(buf_ptr, real_file_name, file_name_len);
+        uint32_t pack_len = head_len + file_name_len;
         ctx->buf_len = pack_len + 4;
+        //printf("pack len = %d\n", pack_len);
         pack_len = htonl(pack_len);
         memcpy(ctx->buf, (const void *)&pack_len, sizeof(uint32_t));
 
         size_t net_len = 0;
         flb_io_net_write(ctx->stream, ctx->buf, ctx->buf_len, &net_len);
         if (net_len != ctx->buf_len) {
-            flb_error("send the data not complete net_len = %d, buf_len = %d", net_len, ctx->buf_len);
+            flb_error("send the data not complete");
         }
         uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
-        if (recv_size < sizeof(uint16_t)) {
+        if (recv_size < sizeof(struct command_file_check_res_head)) {
             return false;
         }
-        char *recv_body = ctx->buf;
-        uint16_t error_code;
-        error_code = *(uint16_t*) recv_body;
-        error_code = ntohs(error_code);
+        struct command_file_check_res_head *res_file_check = (struct command_file_check_res_head*) ctx->buf;
+        proto_file_check_res_ntoh(res_file_check);
+        uint16_t error_code = res_file_check->status;
         if (error_code != RET_STATUS_OK) {
             flb_error("file check res error code = %u\n", error_code);
-            return false;
+        } else {
+            printf("offset = %lu\n", res_file_check->offset);
+            tmp->offset = res_file_check->offset;
         }
     }
     return true;
@@ -63,9 +65,8 @@ bool storage_process_file_check(struct flb_out_lua_config *ctx) {
 
 bool storage_process_connect(struct flb_out_lua_config *ctx, void *head) {
     struct command_connect_req_head *req_head = (struct command_connect_req_head *) head;
-    size_t buf_len = ctx->buf_len - 4;
     size_t req_len = 0;
-    pack_command_connect(req_head, ctx->buf + 4, buf_len, &req_len);
+    pack_command_connect(req_head, ctx->buf + 4, send_buf_size - 4, &req_len);
     uint32_t pack_len = req_len;
     pack_len = ntohl(pack_len);
     memcpy(ctx->buf, (const void *)&pack_len, sizeof(uint32_t));
@@ -220,9 +221,6 @@ process_data_body(struct flb_out_lua_config *ctx, uint8_t type, const char *data
                 flb_error("command file res error code = %u\n", error_code);
                 break;
             }
-            break;
-        }
-        case COMMAND_STREAM_INFO: {
             break;
         }
         case COMMAND_KEEP_ALIVE: {
