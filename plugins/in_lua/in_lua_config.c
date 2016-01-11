@@ -374,10 +374,10 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 flb_info("lua_execute lua_engine = %s", realpath(ctx->lua_engine, NULL));
             }
             else if (0 == strcasecmp(entry->key, "access_key")){
-                gst_global_config.access_key = atoi(entry->val);
+                gst_global_config.access_key = entry->val;
             }
             else if (0 == strcasecmp(entry->key, "host_key")){
-                gst_global_config.host_key = atoi(entry->val);
+                gst_global_config.host_key = entry->val;
             }
             else if(0 == strcasecmp(entry->key, "io_limit")){
                 tmp = atoi(entry->val);
