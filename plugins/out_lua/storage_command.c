@@ -30,13 +30,17 @@ bool storage_process_file_check(struct flb_out_lua_config *ctx) {
         head.file_size = tmp->file_stat.st_size;
         size_t file_name_len = snprintf(real_file_name, 4096, "%s/%s", tmp->file_config.log_directory, tmp->file_name);
         size_t head_len = 0;
+        size_t pack_len = 0;
+        char *pack_ptr = ctx->buf + sizeof(uint32_t);
         head.file_name_len = file_name_len;
-        pack_command_file_check(&head, ctx->buf + 4, send_buf_size - 4, &head_len);
-        //flb_info("res_len = %d\n", head_len);
-        char *buf_ptr = ctx->buf + 4 + head_len;
-        memcpy(buf_ptr, real_file_name, file_name_len);
-        uint32_t pack_len = head_len + file_name_len;
-        ctx->buf_len = pack_len + 4;
+        pack_command_file_check(&head, pack_ptr, send_buf_size - sizeof(uint32_t), &head_len);
+        pack_ptr += head_len;
+        pack_len += head_len;
+        memcpy(pack_ptr, real_file_name, file_name_len);
+        pack_ptr += file_name_len;
+        pack_len += file_name_len;
+
+        ctx->buf_len = pack_len + sizeof(uint32_t);
         //printf("pack len = %d\n", pack_len);
         pack_len = htonl(pack_len);
         memcpy(ctx->buf, (const void *)&pack_len, sizeof(uint32_t));
@@ -63,18 +67,56 @@ bool storage_process_file_check(struct flb_out_lua_config *ctx) {
     return true;
 }
 
-bool storage_process_connect(struct flb_out_lua_config *ctx, void *head) {
-    struct command_connect_req_head *req_head = (struct command_connect_req_head *) head;
+bool storage_process_connect(struct flb_out_lua_config *ctx) {
+    struct flb_in_lua_global *in_lua_config = in_lua_get_global();
+
+    struct command_connect_req_head head;
+    memset (&head, 0 , sizeof(head));
+    head.userid = 10;
+    head.host = 0;
+    head.version = 1;
+    head.tlv_len = 2;
+
+    char *pack_ptr = ctx->buf + sizeof(uint32_t);
+    struct command_connect_req_head *req_head = &head;
     size_t req_len = 0;
-    pack_command_connect(req_head, ctx->buf + 4, send_buf_size - 4, &req_len);
-    uint32_t pack_len = req_len;
+    size_t pack_len = 0;
+    pack_command_connect(req_head, pack_ptr, send_buf_size - sizeof(uint32_t), &req_len);
+    pack_ptr += req_len;
+    pack_len += req_len;
+    /* pack the connect tlv type USER_KEY*/
+    *(pack_type_t*) pack_ptr = USER_KEY;
+    pack_ptr += sizeof(pack_type_t);
+    pack_len += sizeof(pack_type_t);
+    size_t key_len = strlen(in_lua_config->access_key);
+    *(uint16_t*) pack_ptr = htons(key_len);
+    pack_ptr += sizeof(uint16_t);
+    pack_len += sizeof(uint16_t);
+    memcpy(pack_ptr, in_lua_config->access_key, key_len);
+    pack_ptr += key_len;
+    pack_len += key_len;
+    /* pack the connect tlv type HOST_KEY*/
+    *(pack_type_t*) pack_ptr = 5;
+    pack_ptr += sizeof(pack_type_t);
+    pack_len += sizeof(pack_type_t);
+    key_len = strlen(in_lua_config->host_key);
+    *(uint16_t*) pack_ptr = htons(key_len);
+    pack_ptr += sizeof(uint16_t);
+    pack_len += sizeof(uint16_t);
+    memcpy(pack_ptr, in_lua_config->host_key, key_len);
+    pack_ptr += key_len;
+    pack_len += key_len;
+
+    ctx->buf_len = pack_len + sizeof(uint32_t);
+    /* pack the pack len to the pack data*/
     pack_len = ntohl(pack_len);
     memcpy(ctx->buf, (const void *)&pack_len, sizeof(uint32_t));
-    ctx->buf_len = req_len + 4;
 
+    /* send the connect command to the sercer*/
     size_t out_len = 0;
     flb_io_net_write(ctx->stream, ctx->buf, ctx->buf_len, &out_len);
 
+    /* recv the connect response */
     uint64_t recv_size = flb_io_net_read(ctx->stream, ctx->buf, send_buf_size);
     if (recv_size < 128 + sizeof(uint16_t)) {
         return false;
