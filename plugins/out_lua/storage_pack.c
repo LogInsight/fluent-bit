@@ -1,4 +1,4 @@
-
+#include <fluent-bit/flb_utils.h>
 #include "storage_pack.h"
 #include "storage_type.h"
 
@@ -187,7 +187,7 @@ bool pack_command_data_pack(const char* data, size_t input_len, char* out, size_
 
 bool pack_command_file_check(struct command_file_check_req_head *head, char* data, size_t len, size_t *res_len) {
     size_t ret_len = 0;
-    pack_type_t  type = COMMAND_STREAM_INFO;
+    pack_type_t  type = COMMAND_FILE_CHECK;
 
     if (ret_len + sizeof(type) > len) {
         return false;

@@ -107,7 +107,6 @@ typedef struct command_stream_res_head {
 
 typedef struct tag_data_head_s
 {
-    unsigned int len;
     uint64_t offset;
     uint64_t time;
 }DATA_HEAD_REQ_S;

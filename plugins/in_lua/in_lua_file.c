@@ -607,7 +607,6 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
         gettimeofday(&now, NULL);
         data_head.offset = htonll(*offset);
         data_head.time = htonll(now.tv_sec);
-        data_head.len = htonl(read_len);
         read_len = data_encode(DATA_PACK,
                                &data_head,
                                sizeof(data_head),
