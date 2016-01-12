@@ -67,13 +67,7 @@ int cb_lua_init(struct flb_output_plugin *plugin, struct flb_config *config) {
     ctx->buf = malloc(send_buf_size);
     ctx->buf_len = send_buf_size;
 
-    struct command_connect_req_head req_head;
-    memset (&req_head, 0 , sizeof(req_head));
-    req_head.userid = 10;
-    req_head.host = 0;
-    req_head.version = 1;
-    req_head.tlv_len = 0;
-    storage_process_connect(ctx, &req_head);
+    storage_process_connect(ctx);
     return 0;
 }
 

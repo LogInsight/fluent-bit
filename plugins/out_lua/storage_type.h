@@ -72,6 +72,15 @@ unsigned long long static inline htonll(unsigned long long val)
 
     };
 
+    enum tlv_type {
+        HOST_NAME = 0,                // hostname char*
+        HOST_TYPE = 1,                // host tag, char*
+        FILE_STREAM_TYPE = 2,         // stream_tag, char*
+        FILE_TAG = 3,                 // tag, char*
+        USER_KEY = 4,                 // user_key, char*
+        HOST_KEY = 5,                 // host_key, char*
+    };
+
     typedef uint8_t pack_type_t;
 
 //command: connect
