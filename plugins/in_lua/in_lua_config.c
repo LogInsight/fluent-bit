@@ -319,7 +319,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
     lua_State *L = ctx->lua_state;
     int status = 0;
     int resault = 0;
-    int tmp;
+    uint32_t tmp;
     char *path = NULL;
 
     gst_global_config.hostname = NULL;
@@ -413,10 +413,10 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 }
             }
             else if (0 == strcasecmp(entry->key, "server_ip")){
-                gst_global_config.server_ip = entry->key;
+                gst_global_config.server_ip = entry->val;
             }
             else if (0 == strcasecmp(entry->key, "server_port")) {
-                tmp = atoi(entry->key);
+                tmp = atoi(entry->val);
                 if (tmp > 0 && tmp < 65536) {
                     gst_global_config.server_port = tmp;
                 }
