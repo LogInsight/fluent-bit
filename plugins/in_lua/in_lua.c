@@ -199,19 +199,13 @@ int in_lua_collect(struct flb_config *config, void *in_context)
     struct flb_in_lua_exec_info *exec;
     struct flb_in_lua_file_info *file;
 
+    bool need_read = MK_TRUE;
+
     all_time_record += 1;
 
 
     if (0 == all_time_record % IN_LUA_DEFAULT_RESAN_TIME) {
         in_lua_file_rescan(ctx);
-    }
-
-
-    mk_list_foreach(head, &ctx->file_config) {
-        file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
-        if (0 == all_time_record % file->file_config.rescan_interval) {
-            in_lua_file_read(ctx, file);
-        }
     }
 
     mk_list_foreach(head, &ctx->exec_config) {
@@ -222,6 +216,17 @@ int in_lua_collect(struct flb_config *config, void *in_context)
         }
     }
 
+    while (need_read && (ctx->buf_len - ctx->read_len >= 1024)) {
+        need_read = MK_FALSE;
+        mk_list_foreach(head, &ctx->file_config) {
+            file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
+            if ((0 == all_time_record % file->file_config.rescan_interval)
+                && (0 == in_lua_file_read(ctx, file))
+                && (!need_read)) {
+                need_read = MK_TRUE;
+            }
+        }
+    }
 
     return 0;
 }

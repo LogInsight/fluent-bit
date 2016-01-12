@@ -523,9 +523,8 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
     return fd;
 }
 
-void in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file) {
-    in_lua_read(ctx, file->file_fd, &file->offset, file->stream_id, MK_TRUE);
-    return;
+int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file) {
+    return in_lua_read(ctx, file->file_fd, &file->offset, file->stream_id, MK_TRUE);
 }
 
 int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, int stream_id, bool isfile) {
@@ -542,23 +541,34 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
     struct stat stat;
     char buf[64 << 10];
 
+    /* 封包头大小 ,包括stream头和data头 */
+    static const uint32_t min_buf_size = sizeof(COMMAND_STREAM_REQ_S) + sizeof(DATA_HEAD_REQ_S) + 2 + 2 * sizeof(uint32_t);
+
     fstat(file_fd, &stat);
 
     if (isfile) {
         if (*offset == stat.st_size) {
-            return 0;
+            return -1;
         }
-
         if (*offset < stat.st_size) {
+            /*
             *offset = 0;
             lseek(file_fd, 0, SEEK_SET);
+             */
+            flb_error("file read error of stream id %d", stream_id);
         }
     }
 
-    buf_len = ctx->buf_len  - ctx->read_len - sizeof(data_head) - 5;
+    /*总buf大小 － 已使用大小 － 封包头大小 */
+
+    buf_len = ctx->buf_len  - ctx->read_len - min_buf_size;
 
     if (buf_len > (64 << 10)) {
         buf_len = 64 << 10;
+    }
+
+    if (buf_len < 1024) {
+        return -1;
     }
 
 
@@ -742,15 +752,6 @@ void in_lua_file_pre_run(struct flb_in_lua_config *ctx)
         }
         file_num ++;
     }
-#if 0
-    if (file_num > 0) {
-        g_buf_len = (ctx->buf_len - (file_num << 10))/ file_num;
-        g_buf = (char *)malloc(g_buf_len);
-        if (NULL == g_buf) {
-            flb_utils_error_c("read buf malloc failed.");
-        }
-    }
-#endif
     return;
 }
 
