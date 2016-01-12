@@ -463,14 +463,15 @@ int file_open_behave(struct flb_in_lua_config *ctx,
     stReq.stream_id = htonl(stream_id);
     stReq.substream_id = htonl(sub_stream_id);
     stReq.filename_len = htons((uint16_t)len);
+    if (file->file_config.tags) {
+        mk_list_foreach(head, file->file_config.tags) {
+            entry = mk_list_entry(head, struct mk_string_line, _head);
+            len = tlv_encode(FILE_TAG, (uint16_t) entry->len, entry->val, buf + data_len, 8192 - data_len);
 
-    mk_list_foreach(head, file->file_config.tags) {
-        entry = mk_list_entry(head, struct mk_string_line, _head);
-        len = tlv_encode(FILE_TAG, (uint16_t)entry->len, entry->val, buf + data_len, 8192 - data_len);
-
-        if (len > 0) {
-            data_len += len;
-            tlv_num ++;
+            if (len > 0) {
+                data_len += len;
+                tlv_num++;
+            }
         }
     }
 
