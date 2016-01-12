@@ -169,6 +169,7 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
         file->file_fd = -1;
         mk_list_init(&file->_head);
         file->stream_id = 0;
+        file->file_config.tags = NULL;
 
         mk_list_foreach(head, &section->entries)
         {
@@ -233,6 +234,7 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
         file->exec_config.shell = NULL;
         file->exec_config.exec_type = exec_both;
         mk_list_init(&file->_head);
+        file->exec_config.tags = NULL;
 
 
         mk_list_foreach(head, &section->entries)

@@ -551,7 +551,7 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
         if (*offset == stat.st_size) {
             return -1;
         }
-        if (*offset < stat.st_size) {
+        if (*offset > stat.st_size) {
             /*
             *offset = 0;
             lseek(file_fd, 0, SEEK_SET);
@@ -705,9 +705,6 @@ void in_lua_file_init(struct flb_in_lua_config *ctx) {
 
 void in_lua_file_pre_run(struct flb_in_lua_config *ctx)
 {
-    char file_name[4096];
-    int len = 0;
-    int file_num = 0;
 
     struct flb_in_lua_file_info *file;
     struct mk_list *head;
@@ -734,9 +731,6 @@ void in_lua_file_pre_run(struct flb_in_lua_config *ctx)
         return;
     }
 
-
-    file_name[0] = '\0';
-
     ctx->read_len = 0;
 
     mk_list_foreach(head, &ctx->file_config) {
@@ -744,13 +738,9 @@ void in_lua_file_pre_run(struct flb_in_lua_config *ctx)
         in_lua_add_watch(ctx, file);
 
         if(file->new_file) {
-            //与路径整合
-            len = snprintf(file_name, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
-            file_name[len] = '\0';
             //打开文件
             in_lua_file_open(file, ctx);
         }
-        file_num ++;
     }
     return;
 }
