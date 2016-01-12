@@ -9,10 +9,6 @@
 #include "in_lua_file.h"
 
 
-
-static int g_stderr_pipe[2] = {};
-static int g_stdout_pipe[2] = {};
-
 static char *g_std_type[exec_both] = {
     [exec_stdout] = "stdout",
     [exec_stderr] = "stderr"
@@ -28,10 +24,19 @@ static void in_lua_exec_open_behave(struct flb_in_lua_config *ctx, struct flb_in
     struct mk_list *head;
     struct mk_string_line *entry;
 
+    int fd = -1;
+
     if (type >= exec_both) {
         return;
     }
-    fstat(exec->exec_fd[type], &stat);
+
+    if (type == exec_stdout) {
+        fd = exec->stdout_pipe[0];
+    }
+    else {
+        fd = exec->stderr_pipe[0];
+    }
+    fstat(fd, &stat);
 
     len = snprintf(buf, 8192, "/dev/%s/%s",g_std_type[type], exec->exec_config.shell);
     data_len += len;
@@ -74,16 +79,66 @@ static void in_lua_exec_open_behave(struct flb_in_lua_config *ctx, struct flb_in
     return;
 }
 
+int in_lua_exec_stdout_read(void *msg) {
+    struct mk_event *event = (struct mk_event *)msg;
+    struct flb_in_lua_config *ctx = (struct flb_in_lua_config *)event->data;
+    struct flb_in_lua_exec_info *exec = mk_list_entry(event, struct flb_in_lua_exec_info, stdout_event);
+
+    return in_lua_read(ctx, event->fd, &exec->offset[exec_stdout], exec->stream_id[exec_stdout], MK_FALSE);
+}
+
 static void in_lua_exec_stdout_open(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info *entry) {
-    entry->exec_fd[exec_stdout] = g_stdout_pipe[0];
+    int res = -1;
+    struct mk_event *event = &entry->stdout_event;
+    res = pipe(entry->stdout_pipe);
+    if (-1 == res) {
+        flb_utils_error_c("exec init failed.");
+    }
+    event->fd           = entry->stdout_pipe[0];
+    event->type         = MK_EVENT_CUSTOM;
+    event->mask         = MK_EVENT_EMPTY;
+    event->handler      = in_lua_exec_stdout_read;
+    event->status       = MK_EVENT_NONE;
+    event->data         = (void *)ctx;
+
+    res = mk_event_add(ctx->evl, event->fd, MK_EVENT_CUSTOM, MK_EVENT_READ, event);
+    if (res == -1) {
+        flb_utils_error_c("exec event add failed.");
+    }
+
     g_stream_id ++;
     entry->stream_id[exec_stdout] = g_stream_id;
     in_lua_exec_open_behave(ctx, entry, exec_stdout);
     return;
 }
 
+int in_lua_exec_stderr_read(void *msg) {
+    struct mk_event *event = (struct mk_event *)msg;
+    struct flb_in_lua_exec_info *exec = mk_list_entry(event, struct flb_in_lua_exec_info, stderr_event);
+    struct flb_in_lua_config *ctx = (struct flb_in_lua_config *)event->data;
+
+    return in_lua_read(ctx, event->fd, &exec->offset[exec_stderr], exec->stream_id[exec_stderr], MK_FALSE);
+}
+
 static void in_lua_exec_stderr_open(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info *entry) {
-    entry->exec_fd[exec_stderr] = g_stderr_pipe[0];
+    int res = -1;
+    struct mk_event *event = &entry->stderr_event;
+    res = pipe(entry->stderr_pipe);
+    if (-1 == res) {
+        flb_utils_error_c("exec init failed.");
+    }
+    event->fd           = entry->stderr_pipe[0];
+    event->type         = MK_EVENT_CUSTOM;
+    event->mask         = MK_EVENT_EMPTY;
+    event->handler      = in_lua_exec_stderr_read;
+    event->status       = MK_EVENT_NONE;
+    event->data         = (void *)ctx;
+
+    res = mk_event_add(ctx->evl, event->fd, MK_EVENT_CUSTOM, MK_EVENT_READ, event);
+    if (res == -1) {
+        flb_utils_error_c("exec event add failed.");
+    }
+
     g_stream_id ++;
     entry->stream_id[exec_stderr] = g_stream_id;
     in_lua_exec_open_behave(ctx, entry, exec_stderr);
@@ -91,18 +146,8 @@ static void in_lua_exec_stderr_open(struct flb_in_lua_config *ctx, struct flb_in
 }
 
 void in_lua_exec_init(struct flb_in_lua_config *ctx) {
-    int res = 0;
     struct flb_in_lua_exec_info *entry;
     struct mk_list *head;
-
-    res = pipe(g_stderr_pipe);
-    if (res < 0) {
-        flb_utils_error_c("exec init failed.");
-    }
-    res = pipe(g_stdout_pipe);
-    if (res < 0) {
-        flb_utils_error_c("exec init failed.");
-    }
 
     mk_list_foreach(head, &ctx->exec_config) {
         entry = mk_list_entry(head, struct flb_in_lua_exec_info, _head);
@@ -137,61 +182,25 @@ void in_lua_exec_read(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info
     if (0 == pid) {
         switch (exec->exec_config.exec_type) {
             case exec_both:
-                dup2(g_stdout_pipe[1], STDOUT_FILENO);
-                dup2(g_stderr_pipe[1], STDERR_FILENO);
+                dup2(exec->stdout_pipe[1], STDOUT_FILENO);
+                dup2(exec->stderr_pipe[1], STDERR_FILENO);
                 break;
             case exec_stdout:
-                dup2(g_stdout_pipe[1], STDOUT_FILENO);
+                dup2(exec->stdout_pipe[1], STDOUT_FILENO);
                 break;
             case exec_stderr:
-                dup2(g_stderr_pipe[1], STDERR_FILENO);
+                dup2(exec->stderr_pipe[1], STDERR_FILENO);
                 break;
             default:
                 break;
         }
 
-        close(g_stderr_pipe[0]);
-        close(g_stderr_pipe[1]);
-        close(g_stdout_pipe[0]);
-        close(g_stdout_pipe[1]);
+        close(exec->stderr_pipe[0]);
+        close(exec->stderr_pipe[1]);
+        close(exec->stdout_pipe[0]);
+        close(exec->stdout_pipe[1]);
 
         system(exec->exec_config.shell);
-    }
-    else if (0 < pid) {
-        switch (exec->exec_config.exec_type) {
-            case exec_both:
-                in_lua_read(ctx,
-                            exec->exec_fd[exec_stdout],
-                            &exec->offset[exec_stdout],
-                            exec->stream_id[exec_stdout],
-                            MK_FALSE);
-
-                in_lua_read(ctx,
-                            exec->exec_fd[exec_stderr],
-                            &exec->offset[exec_stderr],
-                            exec->stream_id[exec_stderr],
-                            MK_FALSE);
-                break;
-            case exec_stdout:
-                in_lua_read(ctx,
-                            exec->exec_fd[exec_stdout],
-                            &exec->offset[exec_stdout],
-                            exec->stream_id[exec_stdout],
-                            MK_FALSE);
-                break;
-            case exec_stderr:
-                in_lua_read(ctx,
-                            exec->exec_fd[exec_stderr],
-                            &exec->offset[exec_stderr],
-                            exec->stream_id[exec_stderr],
-                            MK_FALSE);
-                break;
-            default:
-                break;
-        }
-    }
-    else {
-        flb_error("exec fork error.");
     }
     return;
 }

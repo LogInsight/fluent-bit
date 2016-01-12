@@ -65,11 +65,14 @@ struct flb_in_lua_file_info {
 };
 
 struct flb_in_lua_exec_info {
+    struct mk_event stderr_event;
+    struct mk_event stdout_event;
     struct mk_list _head;
     struct flb_in_lua_exec exec_config;
     uint32_t stream_id[exec_both];
-    uint32_t exec_fd[exec_both];
     uint64_t offset[exec_both];
+    int stdout_pipe[2];
+    int stderr_pipe[2];
 };
 
 struct flb_in_lua_stat_info {
