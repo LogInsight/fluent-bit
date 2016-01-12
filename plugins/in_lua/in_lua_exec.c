@@ -201,6 +201,10 @@ void in_lua_exec_read(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info
         close(exec->stdout_pipe[1]);
 
         system(exec->exec_config.shell);
+        exit(0);
+    }
+    else if (pid > 0) {
+        waitpid(pid, NULL, 0);
     }
     return;
 }
