@@ -736,8 +736,6 @@ void in_lua_file_pre_run(struct flb_in_lua_config *ctx)
         return;
     }
 
-    ctx->read_len = 0;
-
     mk_list_foreach(head, &ctx->file_config) {
         file = mk_list_entry(head, struct flb_in_lua_file_info, _head);
         in_lua_add_watch(ctx, file);
