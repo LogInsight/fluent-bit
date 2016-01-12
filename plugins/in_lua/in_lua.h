@@ -39,7 +39,7 @@ struct flb_in_lua_config {
     int buf_len;                      /* read buffer length    */
     char *buf;                        /* read buffer: 1MB */
     int read_len;
-    int buffer_id;
+    char *read_buf;
     //struct msgpack_sbuffer mp_sbuf;  /* msgpack sbuffer             */
     //struct msgpack_packer mp_pck;    /* msgpack packer              */
     void* lua_state;                 /* lua 的执行上下文              */

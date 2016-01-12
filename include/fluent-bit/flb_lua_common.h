@@ -16,8 +16,6 @@ enum exec_type {
     exec_both
 };
 
-
-
 struct flb_in_lua_file{
     char *journal_directory;
     char *log_directory;

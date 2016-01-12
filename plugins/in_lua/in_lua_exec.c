@@ -45,14 +45,15 @@ static void in_lua_exec_open_behave(struct flb_in_lua_config *ctx, struct flb_in
     stReq.stream_id = htonl(exec->stream_id[type]);
     stReq.substream_id = 0;
     stReq.filename_len = htons(len);
+    if (exec->exec_config.tags) {
+        mk_list_foreach(head, exec->exec_config.tags) {
+            entry = mk_list_entry(head, struct mk_string_line, _head);
 
-    mk_list_foreach(head, exec->exec_config.tags) {
-        entry = mk_list_entry(head, struct mk_string_line, _head);
-
-        len = tlv_encode(FILE_TAG, (uint16_t)entry->len, entry->val, buf + data_len, 8192 - data_len);
-        if (len > 0) {
-            data_len += len;
-            tlv_num ++;
+            len = tlv_encode(FILE_TAG, (uint16_t) entry->len, entry->val, buf + data_len, 8192 - data_len);
+            if (len > 0) {
+                data_len += len;
+                tlv_num++;
+            }
         }
     }
 
@@ -75,16 +76,16 @@ static void in_lua_exec_open_behave(struct flb_in_lua_config *ctx, struct flb_in
 
 static void in_lua_exec_stdout_open(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info *entry) {
     entry->exec_fd[exec_stdout] = g_stdout_pipe[0];
-    entry->stream_id[exec_stdout] = g_stream_id;
     g_stream_id ++;
+    entry->stream_id[exec_stdout] = g_stream_id;
     in_lua_exec_open_behave(ctx, entry, exec_stdout);
     return;
 }
 
 static void in_lua_exec_stderr_open(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info *entry) {
     entry->exec_fd[exec_stderr] = g_stderr_pipe[0];
-    entry->stream_id[exec_stderr] = g_stream_id;
     g_stream_id ++;
+    entry->stream_id[exec_stderr] = g_stream_id;
     in_lua_exec_open_behave(ctx, entry, exec_stderr);
     return;
 }
