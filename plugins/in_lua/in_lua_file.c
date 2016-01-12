@@ -745,6 +745,11 @@ void in_lua_file_pre_run(struct flb_in_lua_config *ctx)
         if(file->new_file) {
             //打开文件
             in_lua_file_open(file, ctx);
+
+            if (file->file_fd != -1) {
+                close(file->file_fd);
+                file->file_fd = -1;
+            }
         }
     }
     return;
