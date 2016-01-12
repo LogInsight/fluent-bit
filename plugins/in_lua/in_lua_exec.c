@@ -76,16 +76,16 @@ static void in_lua_exec_open_behave(struct flb_in_lua_config *ctx, struct flb_in
 
 static void in_lua_exec_stdout_open(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info *entry) {
     entry->exec_fd[exec_stdout] = g_stdout_pipe[0];
-    entry->stream_id[exec_stdout] = g_stream_id;
     g_stream_id ++;
+    entry->stream_id[exec_stdout] = g_stream_id;
     in_lua_exec_open_behave(ctx, entry, exec_stdout);
     return;
 }
 
 static void in_lua_exec_stderr_open(struct flb_in_lua_config *ctx, struct flb_in_lua_exec_info *entry) {
     entry->exec_fd[exec_stderr] = g_stderr_pipe[0];
-    entry->stream_id[exec_stderr] = g_stream_id;
     g_stream_id ++;
+    entry->stream_id[exec_stderr] = g_stream_id;
     in_lua_exec_open_behave(ctx, entry, exec_stderr);
     return;
 }

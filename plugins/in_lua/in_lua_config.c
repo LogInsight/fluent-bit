@@ -235,6 +235,8 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
         file->exec_config.exec_type = exec_both;
         mk_list_init(&file->_head);
         file->exec_config.tags = NULL;
+        file->stream_id[0] = 0;
+        file->stream_id[1] = 0;
 
 
         mk_list_foreach(head, &section->entries)
@@ -461,6 +463,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
         ctx->timer_mode = MK_TRUE;
     }
     ctx->buf = (char *)malloc(gst_global_config.mem_size);
+    ctx->read_buf = (char *)malloc(gst_global_config.mem_size);
     ctx->buf_len = gst_global_config.mem_size;
     return;
 }

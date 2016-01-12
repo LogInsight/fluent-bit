@@ -176,6 +176,7 @@ int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
 void in_lua_file_close(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file);
 void in_lua_file_pre_run(struct flb_in_lua_config *ctx);
 int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, int stream_id, bool isfile);
+int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config *ctx);
 
 
 

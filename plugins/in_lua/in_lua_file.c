@@ -122,7 +122,7 @@ int file_close_behave(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info
     int iRecv = -1;
     COMMAND_STREAM_END_REQ_S stReq;
 
-    stReq.stream_id = htonl(file->file_fd);
+    stReq.stream_id = htonl(file->stream_id);
     iRecv = data_encode(COMMAND_STREAM_END,
                         &stReq,
                         sizeof(stReq),
@@ -134,6 +134,8 @@ int file_close_behave(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info
     if (iRecv > 0) {
         ctx->read_len += iRecv;
     }
+
+    file->stream_id = 0;
 
     return 0;
 }
@@ -498,6 +500,10 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
     char path[4096];
     int len = 0;
 
+    if (file->file_name[0] == '\0') {
+        return -1;
+    }
+
     len = snprintf(path, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
     path[len] = '\0';
     int fd = open(path, O_RDONLY);
@@ -513,19 +519,25 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
     }
 
     file->file_fd = fd;
-    file->new_file = MK_FALSE;
-    file->stream_id = g_stream_id;
-    g_stream_id ++;
+    if (file->stream_id == 0) {
+        file->new_file = MK_FALSE;
+        g_stream_id++;
+        file->stream_id = g_stream_id;
 
-    file_open_behave(ctx, file, file->stream_id, 0);
-
-    flb_info("file = %s, fd = %d", path, fd);
+        file_open_behave(ctx, file, file->stream_id, 0);
+    }
 
     return fd;
 }
 
 int in_lua_file_read(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file) {
-    return in_lua_read(ctx, file->file_fd, &file->offset, file->stream_id, MK_TRUE);
+    int res = -1;
+    res = in_lua_read(ctx, file->file_fd, &file->offset, file->stream_id, MK_TRUE);
+
+    if (res == -2) {
+        in_lua_file_close(ctx, file);
+    }
+    return res;
 }
 
 int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, int stream_id, bool isfile) {
@@ -540,7 +552,7 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
     struct timeval now;
     int buf_len;
     struct stat stat;
-    char buf[64 << 10];
+    char *buf = ctx->read_buf;
 
     /* 封包头大小 ,包括stream头和data头 */
     static const uint32_t min_buf_size = sizeof(COMMAND_STREAM_REQ_S) + sizeof(DATA_HEAD_REQ_S) + 2 + 2 * sizeof(uint32_t);
@@ -552,11 +564,8 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
             return -1;
         }
         if (*offset > stat.st_size) {
-            /*
-            *offset = 0;
-            lseek(file_fd, 0, SEEK_SET);
-             */
             flb_error("file read error of stream id %d", stream_id);
+            return -2;
         }
     }
 
@@ -564,16 +573,12 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
 
     buf_len = ctx->buf_len  - ctx->read_len - min_buf_size;
 
-    if (buf_len > (64 << 10)) {
-        buf_len = 64 << 10;
-    }
-
     if (buf_len < 1024) {
         return -1;
     }
 
 
-    read_len = read(file_fd, buf, buf_len);
+    read_len = read(file_fd, ctx->read_buf, buf_len);
     if (read_len > 0){
         if (isfile) {
             if (current_fd != stream_id) {
@@ -618,9 +623,9 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
         if (read_len > 0) {
             ctx->read_len += read_len;
         }
-
+        return 0;
     }
-    return 0;
+    return -1;
 }
 
 
