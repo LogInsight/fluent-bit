@@ -34,6 +34,7 @@ static struct flb_in_lua_callback gst_config_call[config_max] = {
         [config_stat] = {"STAT", "stat_", "Stat:", in_lua_stat_conf}
 };
 
+//FIXME: 这里的 全局配置， 可以移动到 flb_in_lua_config 中， 除非特别特别 必要，不应该使用全局变量   --limn
 static struct flb_in_lua_global gst_global_config;
 
 struct flb_in_lua_global *in_lua_get_global() {
@@ -43,10 +44,12 @@ struct flb_in_lua_global *in_lua_get_global() {
 void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info *file)
 {
     if (file->file_config.log_directory == NULL){
+        //FIXME:  give a warning
         return;
     }
 
     if (file->file_config.file_match == NULL){
+        //FIXME: give a warning , if file_match not set, default is *.* ?  -- limn
         return;
     }
 
@@ -62,6 +65,7 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
 
     dir = opendir(file->file_config.log_directory);
     if (NULL == dir) {
+        //FIXME:  check is a file | is a directory | have permission ?  -- limn
         flb_warn("%s open error for %s.", file->file_config.log_directory, strerror(errno));
         return;
     }
@@ -74,6 +78,7 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
         if (ptr->d_type == 8){
             data_len = snprintf(lua_command, 4096, "return ('%s'):match('%s')", ptr->d_name, file->file_config.file_match);
             lua_command[data_len] = '\0';
+            //FIXME: check lua error, eg. file_math contains an invalid regex.  --limn
             luaL_dostring(L, lua_command);
             if (first){
                 second = lua_tostring(L, -1);
@@ -101,12 +106,14 @@ void in_lua_get_file(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info 
             }
         }
     }
+    // FIXME: 没有发现 对 已经 match 过的 文件的 排序规则的定义， 比如 同一个目录下有多个文件 match， 应该读取哪一个  --limn
 
     if (first) {
         if (0 != strcmp(file->file_name, first)) {
             data_len = snprintf(file->file_name, sizeof(file->file_name), "%s",first);
             file->file_name[data_len] = '\0';
             file->new_file = true;
+            // FIXME: should have a log(notify), that a new file found.  --limn
         }
     }
     else {
@@ -178,8 +185,11 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
 
             if(0 == strcasecmp(entry->key, "journal_directory")) {
                 file->file_config.journal_directory = realpath(entry->val, NULL);
+                // FIXME: should check write permission.  --limn
             }
             else if(0 == strcasecmp(entry->key, "log_directory")) {
+                // FIXME: should check write permission.  --limn
+                // FIXME: shuold support syslog ?
                 file->file_config.log_directory = realpath(entry->val, NULL);
             }
             else if(0 == strcasecmp(entry->key, "file_match")) {
@@ -195,7 +205,7 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
                 file->file_config.priority = entry->val;
                 lua_getglobal(ctx->lua_state ,entry->val);
                 if (!(lua_isfunction(ctx->lua_state, -1))) {
-                    fprintf(stderr, "priority (%s) in [%s] is not a function, please check the lua script.\n", entry->val, key);
+                    fprintf(stderr, "priority (%s) in [%s] is not a lua function, please check the lua script.\n", entry->val, key);
                     exit(-1);
                 }
                 lua_pop(ctx->lua_state, 1);
@@ -204,7 +214,8 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
                 file->file_config.tags = mk_string_split_line(entry->val);
             }
             else {
-                flb_info("config [%s] not support %s.", key, entry->key);
+                //FIXME: just a _info ? --limn
+                flb_info("unknown key '%s' in config [%s]", entry->key, key);
             }
         }
 
@@ -215,6 +226,7 @@ void in_lua_file_conf(struct flb_in_lua_config *ctx, struct mk_rconf *conf, char
     return;
 }
 
+// TODO: I've no time to do code-review
 void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char *key)
 {
     struct flb_in_lua_exec_info *file;
@@ -278,6 +290,7 @@ void in_lua_exec_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
     }
 }
 
+// TODO: I've no time to do code-review
 void in_lua_stat_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char *key)
 {
 
@@ -313,6 +326,7 @@ void in_lua_stat_conf(struct flb_in_lua_config* ctx, struct mk_rconf *conf, char
     }
 }
 
+// TODO: I've no time to do code-review
 static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
 {
     struct mk_rconf_section *section;
@@ -384,6 +398,8 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
                 gst_global_config.host_key = entry->val;
             }
             else if(0 == strcasecmp(entry->key, "io_limit")){
+                // FIXME: who about a string value?
+                // FIXME: use mk_rconf_section_get_key can get a string | list | num value, directly.  --limn
                 tmp = atoi(entry->val);
                 if (tmp > 0){
                     gst_global_config.io_limit = tmp;
@@ -438,6 +454,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
         if (status) {
             /* If something went wrong, error message is at the top of */
             /* the stack */
+            // FIXME: what's the error? --limn
             fprintf(stderr, "Couldn't load file: %s", lua_tostring(L, -1));
             exit(1);
         }
@@ -513,7 +530,7 @@ void in_lua_config(struct flb_in_lua_config* ctx, struct mk_rconf *conf)
                     }
                 }
             }
-        }
+        } // end if section             ///FIXME: deep { } must have a comment match the begining.      -- limn
     }
 }
 

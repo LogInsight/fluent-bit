@@ -15,7 +15,7 @@
 
 
 enum config_key{
-    config_file = 0,
+    config_file = 1,        // 0 reverse some special usage,
     config_exec,
     config_stat,
     config_max
