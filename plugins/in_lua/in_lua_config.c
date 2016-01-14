@@ -400,6 +400,7 @@ static void in_lua_ls_config(struct flb_in_lua_config* ctx, struct mk_rconf *con
             else if(0 == strcasecmp(entry->key, "io_limit")){
                 // FIXME: who about a string value?
                 // FIXME: use mk_rconf_section_get_key can get a string | list | num value, directly.  --limn
+                // in branch t/lua have the example code in plugins/in_lua/in_lua_config.c
                 tmp = atoi(entry->val);
                 if (tmp > 0){
                     gst_global_config.io_limit = tmp;

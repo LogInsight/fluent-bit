@@ -30,6 +30,7 @@
 
 #define IN_LUA_DEFAULT_RESAN_TIME   60
 
+// FIXME: move it to config struct.
 extern uint32_t g_stream_id;
 
 /* LUA Input configuration & context */

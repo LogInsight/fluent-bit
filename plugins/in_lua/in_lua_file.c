@@ -24,6 +24,7 @@
 #include "in_lua_tool.h"
 
 
+// FIXME: move this to gloal plugin's config --limn
 static int g_i_inotify_fd= -1;
 
 #define MAX_DATA_LEN   (64 << 10)
@@ -33,13 +34,13 @@ static int g_i_inotify_fd= -1;
 int file_stream_behave(int stream_id, struct flb_in_lua_config *ctx);
 
 
-int tlv_encode(uint8_t type, uint16_t len, char *value, char *out_buf, uint32_t out_buf_len) {
+size_t tlv_encode(uint8_t type, uint16_t len, char *value, char *out_buf, uint32_t out_buf_len) {
     char *current = out_buf;
 
-    int data_len = sizeof(uint8_t) + sizeof(uint16_t) +len;
+    size_t data_len = sizeof(uint8_t) + sizeof(uint16_t) +len;
 
     if (out_buf_len < data_len) {
-        return -1;
+        return 0;  // 0 is enough   //FIXME: change | add error checking in tlv_encode's callee --limn
     }
 
     *current = type;
@@ -123,6 +124,8 @@ int file_close_behave(struct flb_in_lua_config *ctx, struct flb_in_lua_file_info
     COMMAND_STREAM_END_REQ_S stReq;
 
     stReq.stream_id = htonl(file->stream_id);
+    // TODO: a better practice is pre-build req as template, and just copy & modify,
+    // and then fill the data.
     iRecv = data_encode(COMMAND_STREAM_END,
                         &stReq,
                         sizeof(stReq),
@@ -176,7 +179,7 @@ static void in_lua_file_move_to(struct flb_in_lua_config *ctx, struct inotify_ev
     if (tmp) {
         data_len += snprintf(buf,
                             4096,
-                            "%s moved in %s, cookie = %d\n",
+                            "move: [%s] => [%s], cookie = %d\n",   // make the message more parsable
                             event->name,
                             tmp->file_config.log_directory,
                             event->cookie);
@@ -222,7 +225,7 @@ static void in_lua_file_move_from(struct flb_in_lua_config *ctx, struct inotify_
     if (tmp) {
         data_len += snprintf(buf,
                              4096,
-                             "%s moved from %s, cookie = %d\n",
+                             "%s moved from %s, cookie = %d\n",  //FIXME: ...
                              event->name,
                              tmp->file_config.log_directory,
                              event->cookie);
@@ -264,7 +267,7 @@ static void in_lua_file_create(struct flb_in_lua_config *ctx, struct inotify_eve
     if (tmp) {
         data_len += snprintf(buf,
                              4096,
-                             "%s create in %s.\n",
+                             "%s create in %s.\n",  // FIXME: ...
                              event->name,
                              tmp->file_config.log_directory);
         buf[data_len] = '\0';
@@ -308,7 +311,7 @@ static void in_lua_file_delete(struct flb_in_lua_config *ctx, struct inotify_eve
     if (tmp) {
         data_len += snprintf(buf,
                              4096,
-                             "%s delete from %s.\n",
+                             "%s delete from %s.\n",  // FIXME: ...
                              event->name,
                              tmp->file_config.log_directory);
         buf[data_len] = '\0';
@@ -343,18 +346,18 @@ static void in_lua_file_modify(struct flb_in_lua_config *ctx, struct inotify_eve
         {
             fstat(entry->file_fd, &stat);
             if (entry->file_stat.st_uid != stat.st_uid) {
-                len = snprintf(buf, 4096, "user_id change to %d", stat.st_uid);
+                len = snprintf(buf, 4096, "user_id change to %d", stat.st_uid);   // FIXME: ...
 
                 buf[len] = '\0';
             }
 
             if (entry->file_stat.st_gid != stat.st_gid) {
-                len += snprintf(&buf[len], 4096 - len, " group_id change to %d", stat.st_gid);
+                len += snprintf(&buf[len], 4096 - len, " group_id change to %d", stat.st_gid);  // FIXME: ...
                 buf[len] = 0;
             }
 
             if (len  > 0) {
-                len += snprintf(&buf[len], 4096 - len, " of %s/%s", entry->file_config.log_directory, entry->file_name);
+                len += snprintf(&buf[len], 4096 - len, " of %s/%s", entry->file_config.log_directory, entry->file_name);  // FIXME: ...
                 file_head.len = htonl(len);
 
                 len = data_encode(COMMAND_FILE,
@@ -504,11 +507,15 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
         return -1;
     }
 
+    // FIXME: use a macro MAX_PATH instead the magic number 4096
+    // FIXME: give a notic that there's a portable issue.
     len = snprintf(path, 4096, "%s/%s", file->file_config.log_directory, file->file_name);
     path[len] = '\0';
+    // len = snprintf(path, 4096, "%s/%s\0", file->file_config.log_directory, file->file_name); // how about use this ?
     int fd = open(path, O_RDONLY);
     if (fd < 0)
     {
+        // FIXME: printf ?  the fail reasion ?
         printf("open file %s failed.\r\n", path);
         return -1;
     }
@@ -519,6 +526,7 @@ int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config
     }
 
     file->file_fd = fd;
+    // FIXME: is there any stream_id lookup mechanism ? or each timer open a file, stream inc ?
     if (file->stream_id == 0) {
         file->new_file = MK_FALSE;
         g_stream_id++;
@@ -564,10 +572,13 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
             return -1;
         }
         if (*offset > stat.st_size) {
+            // FIXME: does it an error ?  --limn
             flb_error("file read error of stream id %d", stream_id);
             return -2;
         }
     }
+    
+//////////////////  limn review @ here
 
     /*总buf大小 － 已使用大小 － 封包头大小 */
 
@@ -633,8 +644,8 @@ void in_lua_file_init(struct flb_in_lua_config *ctx) {
     int len = 0;
     int fd = -1;
     int buf_len = 4096;
-    int read_len = 0;
-    int real_data_len = 0;
+    ssize_t read_len = 0;
+    ssize_t real_data_len = 0;
 
 
     struct flb_in_lua_file_info *file;
@@ -796,6 +807,7 @@ void in_lua_file_rescan(struct flb_in_lua_config *ctx) {
                 if (entry->file_fd != -1){
                     in_lua_file_close(ctx, entry);
                 }
+                //???: file_name can be NULL or not ?
                 if (entry->file_name[0] != '\0')
                     in_lua_file_open(entry, ctx);
                 //in_lua_add_event(ctx, entry);

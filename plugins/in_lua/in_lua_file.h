@@ -7,6 +7,8 @@
 
 #pragma pack(1)
 
+// FIXME: 1) reverse 0
+// 2) should have a custom pack_type, for extension reason.
 typedef enum pack_type {
     DATA_PACK = 0,               // 数据包
     COMMAND_CONNECT = 1,         // 与服务器获取连接, 新建或恢复session
@@ -37,18 +39,20 @@ typedef enum ret_status {
 
 }RET_STATUS_E;
 
+// FIXME: reverse 0
 enum tlv_type {
     HOST_NAME = 0,
     HOST_TYPE,
     FILE_STREAM_TYPE,
     FILE_TAG,
     FILE_MAX
-};
+}; // FIXME: why no typedef here ?  --limn
 
+// FIXME: add a sno field in each req & res, for debug usage.  --limn
 typedef struct command_connect_req_head {
     uint16_t version;
-    uint32_t userid;
-    uint32_t host;
+    uint32_t userid;    //FIXME: sever do not care about userid, use host_key can find which user --limn
+    uint32_t host;  // It seems there's no hostid, only host_key
     uint32_t tlv_len;
 }COMMAND_CONNECT_REQ_S;
 
@@ -56,7 +60,7 @@ typedef struct command_connect_res_head {
     uint16_t status;
     uint64_t sessionid;
     uint16_t stream_count;
-    uint32_t tlv_len;
+    uint32_t tlv_len; // TODO: [description] what's data format？
 }COMMAND_CONNECT_RES_S;
 
 typedef struct command_close_req_head {
@@ -78,11 +82,12 @@ typedef struct command_stream_start_req_head {
     uint32_t mod;
     uint64_t offset;
     uint16_t filename_len;
-    uint32_t tlv_len;
+    uint32_t tlv_len; // TODO: [description] what's data format？
 }COMMAND_OPEN_REQ_S;
 
 typedef struct command_stream_start_res_head {
     uint16_t status;
+    //FIXME: response global stream_id <-> the stream_id in req     --limn
 }COMMAND_OPEN_RES_S;
 
 
@@ -94,31 +99,34 @@ typedef struct command_stream_end_req_head {
 typedef struct command_stream_end_res_head {
     uint16_t status;
     char md5[128];
+    //FIXME: add stream_id 或其他等价
 }COMMAND_STREAM_END_RES_S;
 
 typedef struct command_stream_req_head {
     uint32_t stream_id;
-    uint32_t tlv_len;
+    uint32_t tlv_len;   // TODO: [description] what's data format？
 }COMMAND_STREAM_REQ_S;
 
 typedef struct command_stream_res_head {
     uint16_t status;
+    // TODO: add current stream_id @ server for debug usage
 }COMMAND_STREAM_RES_S;
 
 typedef struct tag_data_head_s
 {
     uint64_t offset;
-    uint64_t time;
+    uint64_t time;  // the data len ?
 }DATA_HEAD_REQ_S;
 
 typedef struct tag_data_head_res_s
 {
     unsigned short status;
+    // FIXME: the offset in the stream @server side & current offset server received in current file.
 }DATA_HEAD_RES_S;
 
 
 typedef struct tag_file_head_req_s {
-    uint32_t len;
+    uint32_t len;  //???
 }FILE_HEAD_REQ_S;
 
 
@@ -160,7 +168,7 @@ typedef struct tag_stream_id_info_s
 
 #pragma pack()
 
-int tlv_encode(uint8_t type, uint16_t len, char *value, char *out_buf, uint32_t out_buf_len);
+size_t tlv_encode(uint8_t type, uint16_t len, char *value, char *out_buf, uint32_t out_buf_len);
 
 int data_encode(unsigned char ucType,
                 void *pHead,
@@ -179,7 +187,7 @@ int in_lua_read(struct flb_in_lua_config *ctx, int file_fd, uint64_t *offset, in
 int in_lua_file_open(struct flb_in_lua_file_info *file, struct flb_in_lua_config *ctx);
 
 
-
+// ntohll & htonll not provide by system ?
 unsigned long long static inline ntohll(unsigned long long val)
 {
     if (__BYTE_ORDER == __LITTLE_ENDIAN)
